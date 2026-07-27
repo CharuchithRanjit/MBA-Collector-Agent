@@ -1,0 +1,35 @@
+[project]
+name = "chief"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Charuchith Ranjit", email = "charuchith@gmail.com" }
+]
+requires-python = ">=3.9"
+dependencies = [
+    "fastapi>=0.128.8",
+    "httpx>=0.28.1",
+    "jinja2>=3.1.6",
+    "pydantic-settings>=2.11.0",
+    "rich>=15.0.0",
+    "sqlmodel>=0.0.34",
+    "structlog>=25.5.0",
+    "typer>=0.23.2",
+    "uvicorn>=0.39.0",
+]
+
+[project.scripts]
+chief = "chief:main"
+
+[build-system]
+requires = ["uv_build>=0.11.32,<0.12.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "freezegun>=1.5.5",
+    "pytest>=8.4.2",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.16.0",
+]
