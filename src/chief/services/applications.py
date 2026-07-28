@@ -13,6 +13,9 @@ def add_application(
     title: str,
     kind: RoleKind,
     deadline_at: datetime | None = None,
+    location: str | None = None,
+    jd_url: str | None = None,
+    jd_raw_text: str | None = None,
 ) -> Application:
     """Create company (if new), role, and application in one call."""
     company = session.exec(select(Company).where(Company.name == company_name)).first()
@@ -21,11 +24,23 @@ def add_application(
         session.add(company)
         session.flush()
 
-    role = Role(company_id=company.id, title=title, kind=kind, deadline_at=as_utc(deadline_at))
+    role = Role(
+        company_id=company.id,
+        title=title,
+        kind=kind,
+        deadline_at=as_utc(deadline_at),
+        location=location,
+        jd_url=jd_url,
+        jd_raw_text=jd_raw_text,
+    )
     session.add(role)
     session.flush()
 
-    application = Application(role_id=role.id)
+    # role=role, not role_id=role.id — keeps the relationship populated
+    # with this exact Python object. Otherwise, once `role` falls out of
+    # scope, a later `.role` access can trigger a fresh SELECT, and
+    # SQLite reads datetimes back naive (see CLAUDE.md landmines).
+    application = Application(role=role)
     session.add(application)
     session.flush()
     return application

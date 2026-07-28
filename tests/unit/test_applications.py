@@ -69,3 +69,19 @@ def test_due_within_days_respects_injected_now(session):
     results = applications.list_applications(session, due_within_days=7, now=injected_now)
 
     assert results == []
+
+
+def test_add_application_persists_jd_url_and_location(session):
+    application = applications.add_application(
+        session,
+        "Acme",
+        "SWE Intern",
+        RoleKind.INTERN,
+        location="Remote",
+        jd_url="https://example.com/job/1",
+        jd_raw_text="raw jd text",
+    )
+
+    assert application.role.location == "Remote"
+    assert application.role.jd_url == "https://example.com/job/1"
+    assert application.role.jd_raw_text == "raw jd text"

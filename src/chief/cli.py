@@ -1,5 +1,6 @@
 """CLI entrypoint. Commands parse, call a service, and render. Nothing else."""
 
+import sys
 from datetime import UTC, datetime
 from typing import Annotated
 
@@ -8,12 +9,15 @@ from rich.console import Console
 from rich.table import Table
 
 from chief.db import get_session, init_db
+from chief.llm.factory import get_llm_provider
 from chief.models import Application, AppStatus, RoleKind, as_utc
-from chief.services import applications
+from chief.services import applications, jobs
 
 app = typer.Typer(pretty_exceptions_show_locals=False)
 app_cmd = typer.Typer()
 app.add_typer(app_cmd, name="app")
+jd_cmd = typer.Typer()
+app.add_typer(jd_cmd, name="jd")
 
 console = Console()
 
@@ -78,3 +82,14 @@ def move(
             session, application_id, status, next_action, _parse_deadline(next_action_due)
         )
     console.print(f"Moved application {application_id}")
+
+
+@jd_cmd.command("add")
+def jd_add(
+    url: Annotated[str | None, typer.Argument()] = None,
+    paste: Annotated[bool, typer.Option("--paste")] = False,
+) -> None:
+    pasted_text = sys.stdin.read() if paste else None
+    with get_session() as session:
+        result = jobs.ingest_jd(session, get_llm_provider(), url=url, pasted_text=pasted_text)
+    console.print(f"Added application {result.id}")
