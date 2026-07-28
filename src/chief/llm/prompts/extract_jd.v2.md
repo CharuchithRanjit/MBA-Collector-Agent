@@ -8,7 +8,12 @@ stated and nothing else.
 tracking system, or staffing agency. If the posting is hosted on
 Greenhouse, Workday, Lever, or Ashby, the company is the employer
 whose role it is, not the platform. Use the common name ("Stripe"),
-not the legal entity ("Stripe Payments Europe Ltd").
+not the legal entity ("Stripe Payments Europe Ltd"). Strip trailing
+corporate suffixes even when the posting's own byline includes them —
+"Amazon, Inc." → "Amazon", "Stripe, Inc." → "Stripe". Only keep a
+suffix if it is genuinely part of the brand name itself (e.g. "Dow
+Jones & Company" stays as posted — "& Company" is part of the name,
+not a bolted-on suffix like ", Inc." or ", LLC").
 
 **title** — exactly as posted. Do not normalise, expand, or shorten.
 "APM, Summer 2027" stays "APM, Summer 2027".
@@ -19,8 +24,15 @@ New-grad and entry-level roles that are permanent are `fulltime`.
 If the posting genuinely does not say, choose `fulltime`.
 
 **location** — as stated. "Remote" is a valid location. "Remote (US)"
-is a valid location. If several offices are listed, use the first.
-If no location appears anywhere, null.
+is a valid location. If no location appears anywhere, null.
+
+Distinguish a single combined location value from an actual list of
+offices. "Pittsburgh, PA or Dallas, TX (Hybrid)" is one value from one
+labeled `Location:` field — transcribe it whole, do not split it.
+A genuine list of separate offices (a location dropdown, a bulleted
+list of city options across an entire job board, an "Offices:" section
+naming many unrelated cities) is different — there, use the first one
+listed.
 
 **requirements** — the concrete qualifications the posting asks for,
 as a list of short strings. Skills, tools, degrees, years of

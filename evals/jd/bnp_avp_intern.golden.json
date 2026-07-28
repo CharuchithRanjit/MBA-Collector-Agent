@@ -1,0 +1,27 @@
+{
+  "company": "BNP Paribas",
+  "title": "2027 – Summer Assistant Vice President Internship - Corporate Functions, Analytics Lab (Machine Learning Engineer)",
+  "kind": "intern",
+  "location": "Jersey City, New Jersey, United States",
+  "deadline": null,
+  "requirements": [
+    "Graduation year of Winter 2027",
+    "Master's degree in MIS, Computer Science, Optimization, Statistics, Mathematics",
+    "Python or C",
+    "SQL",
+    "statistical modeling",
+    "data analysis",
+    "LangChain, CrewAI, Google ADK, OpenAI Agent SDK",
+    "Tensorflow, PyTorch, scikit-learn",
+    "retrieval pipelines",
+    "reranking",
+    "RAG",
+    "hallucination",
+    "Git",
+    "MLOps",
+    "DVC",
+    "MLFlow",
+    "Jenkins",
+    "Docker"
+  ]
+}
