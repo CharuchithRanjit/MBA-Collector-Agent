@@ -1,5 +1,6 @@
 import httpx
 import pytest
+import trafilatura
 
 from chief.fetch import FetchError, fetch_url_text
 
@@ -42,6 +43,17 @@ def test_fetch_url_text_raises_fetch_error_on_403(monkeypatch):
 
     with pytest.raises(FetchError):
         fetch_url_text("https://example.com/job/blocked")
+
+
+def test_fetch_url_text_raises_fetch_error_on_empty_extraction(monkeypatch):
+    def fake_get(url, **kwargs):
+        return httpx.Response(200, text="<html><body></body></html>", request=httpx.Request("GET", url))
+
+    monkeypatch.setattr(httpx, "get", fake_get)
+    monkeypatch.setattr(trafilatura, "extract", lambda html: None)
+
+    with pytest.raises(FetchError):
+        fetch_url_text("https://example.com/job/empty")
 
 
 def test_fetch_url_text_sends_browser_user_agent(monkeypatch):

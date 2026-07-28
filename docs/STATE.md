@@ -65,15 +65,18 @@ Milestone: hour 8 of 10 complete — ClaudeCLIProvider real cost/model, stdin pr
   returncode and truncates the echoed command to 200 chars instead of
   dumping the whole prompt. Live-verified: model="claude-sonnet-5",
   cost_usd=0.1074 on the real BNP ingest, not "claude-cli"/0.0.
-- 36 tests passing
+- fetch_url_text's empty-extraction path (trafilatura.extract returns
+  None) now has a direct test — was only covered indirectly before
+- Stray tracked .pyc files (predating the ignore-bytecode commit)
+  untracked with `git rm --cached`; .gitignore already covered them
+- 37 tests passing
 
 ## Next
 - 10 real job descriptions as golden files in evals/ + an eval harness
   (`-m eval` marker, real API calls) — a quality-measurement slice,
-  distinct from "does the pipeline wire together"
-- fetch_url_text's empty-extraction path raises FetchError but has no
-  direct test yet (only the 403/HTTP-error path and the UA header are
-  tested) — flagged, not added since it wasn't a named test this slice
+  distinct from "does the pipeline wire together". evals/jd/
+  bnp_avp_intern.txt already exists on disk but is untracked —
+  commit it as part of this slice, not before
 - AnthropicAPIProvider's cost_usd is still hardcoded 0.0 (no
   MODEL_FOR_PURPOSE/pricing table) — unaffected by this slice, which
   only touched ClaudeCLIProvider; that path gets cost directly from
