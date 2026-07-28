@@ -1,7 +1,7 @@
 # STATE
 
 Updated: 2026-07-28
-Milestone: hour 6 of 10 complete — chief jd add works end to end for real
+Milestone: hour 7 of 10 complete — requirements extraction + chief jd show
 
 ## Done
 - models.py, db.py, config.py, cli.py
@@ -33,7 +33,24 @@ Milestone: hour 6 of 10 complete — chief jd add works end to end for real
   --paste" hint (highlight=False — Rich's auto-highlighting was
   injecting ANSI codes into a message meant to be exact/greppable),
   exits 1, no traceback. Live-smoke-tested against a real 404.
-- 33 tests passing
+- Role.requirements (JSON list, hand-written) now flows through:
+  RoleExtraction.requirements, add_application(requirements=...),
+  ingest_jd forwards extraction.requirements, jd_to_role defaults to
+  prompt_version="v2". New `chief jd show <id>` command + new
+  applications.get_application() service function (not LLM-related,
+  no FakeLLM test needed). Live-tested with a real posting containing
+  deliberate filler ("Strong communication skills") — v2 prompt
+  correctly excluded it from requirements, exactly as instructed.
+- Two of the three named tests for this slice (persists_requirements,
+  handles_empty_requirements) already passed once the plumbing was
+  written — same "trivial additive param" pattern as location/jd_url/
+  jd_raw_text earlier, nothing to meaningfully stub there. Only
+  get_application + chief jd show were genuinely new logic and went
+  through a real red state first.
+- Note: local data/chief.db still has the old Role schema (no
+  requirements column) — create_all doesn't migrate existing tables.
+  Not fixed here; you're recreating the DB by hand.
+- 36 tests passing
 
 ## Next
 - 10 real job descriptions as golden files in evals/ + an eval harness
@@ -42,6 +59,9 @@ Milestone: hour 6 of 10 complete — chief jd add works end to end for real
 - fetch_url_text's empty-extraction path raises FetchError but has no
   direct test yet (only the 403/HTTP-error path and the UA header are
   tested) — flagged, not added since it wasn't a named test this slice
+- models.py has one pre-existing ruff nit (I001, unsorted imports)
+  from the requirements-column edit — left alone since models.py is
+  yours; ruff --fix would reorder it if you ever run it un-scoped
 - MODEL_FOR_PURPOSE routing table + real cost_usd calc (still deferred
   — no purpose needs cheap/expensive routing yet)
 - ClaudeCLIProvider's LLMResponse.model is just "claude-cli" (the

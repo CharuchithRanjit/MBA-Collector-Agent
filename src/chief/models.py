@@ -3,6 +3,7 @@
 from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Optional
+from sqlalchemy import JSON, Column
 
 from sqlmodel import Field, Relationship, SQLModel
 
@@ -56,7 +57,7 @@ class Role(SQLModel, table=True):
     jd_raw_text: str | None = None        # always keep the source
     deadline_at: datetime | None = Field(default=None, index=True)
     created_at: datetime = Field(default_factory=utcnow)
-
+    requirements: list[str] = Field(default_factory=list, sa_column=Column(JSON))
     company: Company = Relationship(back_populates="roles")
     application: Optional["Application"] = Relationship(back_populates="role")
 

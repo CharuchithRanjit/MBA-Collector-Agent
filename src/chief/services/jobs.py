@@ -41,4 +41,5 @@ def ingest_jd(
         location=extraction.location,
         jd_url=url,
         jd_raw_text=text,
+        requirements=extraction.requirements,
     )

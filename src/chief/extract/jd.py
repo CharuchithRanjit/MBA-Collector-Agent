@@ -23,13 +23,14 @@ class RoleExtraction(BaseModel):
     kind: RoleKind
     location: str | None = None
     deadline: date | None = None
+    requirements: list[str] = []
 
 
 def _read_prompt_template(prompt_version: str) -> str:
     return (PROMPTS_DIR / f"extract_jd.{prompt_version}.md").read_text()
 
 
-def jd_to_role(text: str, llm: LLMProvider, *, prompt_version: str = "v1") -> RoleExtraction:
+def jd_to_role(text: str, llm: LLMProvider, *, prompt_version: str = "v2") -> RoleExtraction:
     """Extract company/title/kind/location/deadline from JD text."""
     template = _read_prompt_template(prompt_version)
     prompt = f"{template}\n\n---\nJOB POSTING TEXT:\n{text}"

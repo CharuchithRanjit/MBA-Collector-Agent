@@ -16,6 +16,7 @@ def add_application(
     location: str | None = None,
     jd_url: str | None = None,
     jd_raw_text: str | None = None,
+    requirements: list[str] | None = None,
 ) -> Application:
     """Create company (if new), role, and application in one call."""
     company = session.exec(select(Company).where(Company.name == company_name)).first()
@@ -32,6 +33,7 @@ def add_application(
         location=location,
         jd_url=jd_url,
         jd_raw_text=jd_raw_text,
+        requirements=requirements if requirements is not None else [],
     )
     session.add(role)
     session.flush()
@@ -43,6 +45,14 @@ def add_application(
     application = Application(role=role)
     session.add(application)
     session.flush()
+    return application
+
+
+def get_application(session: Session, application_id: int) -> Application:
+    """Fetch a single application by id. Raises ValueError if it doesn't exist."""
+    application = session.get(Application, application_id)
+    if application is None:
+        raise ValueError(f"No application with id {application_id}")
     return application
 
 

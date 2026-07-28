@@ -70,3 +70,26 @@ def test_ingest_jd_persists_jd_raw_text(session, monkeypatch):
 def test_ingest_jd_raises_value_error_when_neither_url_nor_pasted_text_given(session):
     with pytest.raises(ValueError):
         jobs.ingest_jd(session, DummyLLM())
+
+
+def test_ingest_jd_persists_requirements(session, monkeypatch):
+    extraction = RoleExtraction(
+        company="Acme",
+        title="SWE Intern",
+        kind=RoleKind.INTERN,
+        requirements=["Python", "3+ years experience", "BS in CS"],
+    )
+    monkeypatch.setattr(jobs, "jd_to_role", lambda text, llm, **kwargs: extraction)
+
+    application = jobs.ingest_jd(session, DummyLLM(), pasted_text="raw jd text")
+
+    assert application.role.requirements == ["Python", "3+ years experience", "BS in CS"]
+
+
+def test_ingest_jd_handles_empty_requirements(session, monkeypatch):
+    extraction = RoleExtraction(company="Acme", title="SWE Intern", kind=RoleKind.INTERN)
+    monkeypatch.setattr(jobs, "jd_to_role", lambda text, llm, **kwargs: extraction)
+
+    application = jobs.ingest_jd(session, DummyLLM(), pasted_text="raw jd text")
+
+    assert application.role.requirements == []

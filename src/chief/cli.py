@@ -44,6 +44,19 @@ def _render(rows: list[Application]) -> None:
     console.print(table)
 
 
+def _render_requirements(application: Application) -> None:
+    role = application.role
+    deadline = as_utc(role.deadline_at)
+    console.print(f"{role.company.name} — {role.title}", highlight=False)
+    console.print(f"Location: {role.location or '—'}", highlight=False)
+    console.print(f"Deadline: {deadline.date().isoformat() if deadline else '—'}", highlight=False)
+    console.print("Requirements:", highlight=False)
+    for requirement in role.requirements:
+        console.print(f"  • {requirement}", highlight=False)
+    if not role.requirements:
+        console.print("  (none extracted)", highlight=False)
+
+
 @app_cmd.command("add")
 def add(
     company: str,
@@ -98,3 +111,10 @@ def jd_add(
         console.print(f"{e}. Copy the page text and run:\n  chief jd add --paste", highlight=False)
         raise typer.Exit(code=1) from None
     console.print(f"Added application {result.id}")
+
+
+@jd_cmd.command("show")
+def jd_show(application_id: int) -> None:
+    with get_session() as session:
+        application = applications.get_application(session, application_id)
+        _render_requirements(application)
