@@ -1,7 +1,7 @@
 import httpx
 import pytest
 
-from chief.fetch import fetch_url_text
+from chief.fetch import FetchError, fetch_url_text
 
 FAKE_HTML = """
 <html>
@@ -34,11 +34,28 @@ def test_fetch_url_text_extracts_clean_text_from_html(monkeypatch):
     assert "Home | Jobs | About" not in text
 
 
-def test_fetch_url_text_raises_on_http_error(monkeypatch):
+def test_fetch_url_text_raises_fetch_error_on_403(monkeypatch):
     def fake_get(url, **kwargs):
-        return httpx.Response(404, text="not found", request=httpx.Request("GET", url))
+        return httpx.Response(403, text="forbidden", request=httpx.Request("GET", url))
 
     monkeypatch.setattr(httpx, "get", fake_get)
 
-    with pytest.raises(httpx.HTTPStatusError):
-        fetch_url_text("https://example.com/job/missing")
+    with pytest.raises(FetchError):
+        fetch_url_text("https://example.com/job/blocked")
+
+
+def test_fetch_url_text_sends_browser_user_agent(monkeypatch):
+    captured = {}
+
+    def fake_get(url, **kwargs):
+        captured["headers"] = kwargs.get("headers", {})
+        return httpx.Response(200, text=FAKE_HTML, request=httpx.Request("GET", url))
+
+    monkeypatch.setattr(httpx, "get", fake_get)
+
+    fetch_url_text("https://example.com/job/123")
+
+    user_agent = captured["headers"].get("User-Agent", "")
+    assert "python-httpx" not in user_agent
+    assert "Mozilla" in user_agent
+    assert "Accept-Language" in captured["headers"]

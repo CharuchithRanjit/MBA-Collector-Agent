@@ -9,6 +9,7 @@ from rich.console import Console
 from rich.table import Table
 
 from chief.db import get_session, init_db
+from chief.fetch import FetchError
 from chief.llm.factory import get_llm_provider
 from chief.models import Application, AppStatus, RoleKind, as_utc
 from chief.services import applications, jobs
@@ -90,6 +91,10 @@ def jd_add(
     paste: Annotated[bool, typer.Option("--paste")] = False,
 ) -> None:
     pasted_text = sys.stdin.read() if paste else None
-    with get_session() as session:
-        result = jobs.ingest_jd(session, get_llm_provider(), url=url, pasted_text=pasted_text)
+    try:
+        with get_session() as session:
+            result = jobs.ingest_jd(session, get_llm_provider(), url=url, pasted_text=pasted_text)
+    except FetchError as e:
+        console.print(f"{e}. Copy the page text and run:\n  chief jd add --paste", highlight=False)
+        raise typer.Exit(code=1) from None
     console.print(f"Added application {result.id}")

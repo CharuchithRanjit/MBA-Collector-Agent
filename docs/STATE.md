@@ -25,12 +25,23 @@ Milestone: hour 6 of 10 complete — chief jd add works end to end for real
 - Bugfix: `Application(role_id=role.id)` let `.role` get GC'd and
   silently re-queried, hitting the SQLite-naive-datetime landmine on
   deadline_at. Fixed to `Application(role=role)`.
-- 31 tests passing
+- fetch.py hardened against bot-blocking: sends a real browser
+  User-Agent + Accept-Language (default python-httpx UA gets 403'd by
+  a lot of corporate career sites), raises FetchError (not raw httpx
+  exceptions) on bad status or empty extraction. cli.py's jd_add
+  catches FetchError, prints a one-line "copy the page text and run
+  --paste" hint (highlight=False — Rich's auto-highlighting was
+  injecting ANSI codes into a message meant to be exact/greppable),
+  exits 1, no traceback. Live-smoke-tested against a real 404.
+- 33 tests passing
 
 ## Next
 - 10 real job descriptions as golden files in evals/ + an eval harness
   (`-m eval` marker, real API calls) — a quality-measurement slice,
   distinct from "does the pipeline wire together"
+- fetch_url_text's empty-extraction path raises FetchError but has no
+  direct test yet (only the 403/HTTP-error path and the UA header are
+  tested) — flagged, not added since it wasn't a named test this slice
 - MODEL_FOR_PURPOSE routing table + real cost_usd calc (still deferred
   — no purpose needs cheap/expensive routing yet)
 - ClaudeCLIProvider's LLMResponse.model is just "claude-cli" (the
