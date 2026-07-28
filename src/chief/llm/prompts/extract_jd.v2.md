@@ -34,6 +34,16 @@ list of city options across an entire job board, an "Offices:" section
 naming many unrelated cities) is different — there, use the first one
 listed.
 
+Career-portal aggregators (e.g. university job boards) often repeat
+the same location twice: once in an unlabeled summary card near the
+title, and again under an explicit field label like `Location` in a
+"Job Details" section further down, sometimes with small formatting
+differences between the two (e.g. one copy appends "(United States)"
+to every city, the other doesn't). When the same list appears in both
+places, use the copy under the explicit label and match its exact
+formatting — the labeled field is the structured data; the summary
+card is a rendering of it.
+
 **requirements** — the concrete qualifications the posting asks for,
 as a list of short strings. Skills, tools, degrees, years of
 experience. Transcribe them; do not summarise, group, or invent
