@@ -3,8 +3,8 @@
 from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Optional
-from sqlalchemy import JSON, Column
 
+from sqlalchemy import JSON, Column
 from sqlmodel import Field, Relationship, SQLModel
 
 

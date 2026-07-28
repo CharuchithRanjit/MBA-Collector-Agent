@@ -8,6 +8,9 @@ Milestone: hour 8 of 10 complete — ClaudeCLIProvider real cost/model, stdin pr
 - services/applications.py (add/list/move, null-last ordering, injectable
   clock; add_application now also takes location/jd_url/jd_raw_text, and
   builds Application(role=role) not role_id= — see bugfix note below)
+- add_application no longer accepts `tier` — it was silently discarded
+  whenever the company already existed. Company keeps its default
+  tier of 2; cli.py's `add` command no longer exposes --tier either.
 - llm/base.py (LLMProvider protocol, hand-written) + models.LLMCall
 - llm/: ClaudeCLIProvider, AnthropicAPIProvider, FakeLLM, shared
   structured() retry helper, LoggingProvider (writes llm_call, retry
@@ -71,9 +74,6 @@ Milestone: hour 8 of 10 complete — ClaudeCLIProvider real cost/model, stdin pr
 - fetch_url_text's empty-extraction path raises FetchError but has no
   direct test yet (only the 403/HTTP-error path and the UA header are
   tested) — flagged, not added since it wasn't a named test this slice
-- models.py has one pre-existing ruff nit (I001, unsorted imports)
-  from the requirements-column edit — left alone since models.py is
-  yours; ruff --fix would reorder it if you ever run it un-scoped
 - AnthropicAPIProvider's cost_usd is still hardcoded 0.0 (no
   MODEL_FOR_PURPOSE/pricing table) — unaffected by this slice, which
   only touched ClaudeCLIProvider; that path gets cost directly from
