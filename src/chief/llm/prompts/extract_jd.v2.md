@@ -57,4 +57,4 @@ Return only a single JSON object — no markdown code fences, no
 preamble, no explanation, no commentary on what you could not find.
 Exactly these keys, no others:
 
-{"company": string, "title": string, "kind": "intern" | "fulltime", "location": string | null, "deadline": "YYYY-MM-DD" | null}
+{"company": string, "title": string, "kind": "intern" | "fulltime", "location": string | null, "requirements": [string, ...], "deadline": "YYYY-MM-DD" | null}
