@@ -7,7 +7,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from chief.db import get_session,init_db
+from chief.db import get_session, init_db
 from chief.models import Application, AppStatus, RoleKind, as_utc
 from chief.services import applications
 

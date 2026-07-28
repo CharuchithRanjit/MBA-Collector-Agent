@@ -20,3 +20,33 @@ Python 3.12, uv, FastAPI, Typer, SQLModel, SQLite, pytest, ruff, Docker.
 uv run pytest            # tests
 uv run ruff check --fix  # lint
 uv run chief --help      # CLI
+
+## Context
+Read docs/context.md before any non-trivial task. docs/design.md is the
+full architecture. docs/STATE.md is the live status — read it first,
+update it last.
+
+## Division of labour
+I hand-write: models.py, llm/base.py, rank.py, prompts, test NAMES,
+and every architectural boundary. You write: service bodies, CLI and
+API wiring, test bodies, Dockerfile, compose, CI.
+If a task requires changing an interface I own, STOP and tell me.
+Do not write it for me.
+
+## How to work
+1. Plan first, no code. Wait for my approval.
+2. Failing tests before implementation. Show me they fail for the
+   right reason — an ImportError is not a red test.
+3. Implement.
+4. One commit per vertical slice. Never per file.
+
+## Challenge me
+If a request adds a feature that does not improve the morning briefing
+or reduce input friction, say so before building it. If a simpler
+deterministic solution exists, propose it. Do not agree by default.
+
+## Known landmines
+- SQLite reads datetimes back NAIVE. Call as_utc() on the read path
+  before any Python-side arithmetic. This will bite in rank.py.
+- Order by `Col.is_(None), Col` — SQLite sorts NULL first.
+- Time-dependent functions take `now: datetime | None = None`.

@@ -71,3 +71,17 @@ class Application(SQLModel, table=True):
     created_at: datetime = Field(default_factory=utcnow)
 
     role: Role = Relationship(back_populates="application")
+
+class LLMCall(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    created_at: datetime = Field(default_factory=utcnow, index=True)
+    purpose: str = Field(index=True)
+    provider: str
+    model: str
+    prompt_version: str
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cost_usd: float = 0.0
+    latency_ms: int = 0
+    success: bool = True
+    error: str | None = None
