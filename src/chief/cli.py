@@ -45,10 +45,9 @@ def add(
     title: str,
     kind: RoleKind,
     deadline: Annotated[str | None, typer.Option("--deadline")] = None,
-    tier: int = 2,
 ) -> None:
     with get_session() as session:
-        result = applications.add_application(session, company, title, kind, _parse_deadline(deadline), tier)
+        result = applications.add_application(session, company, title, kind, _parse_deadline(deadline))
     console.print(f"Added application {result.id}")
 
 

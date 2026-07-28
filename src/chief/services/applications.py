@@ -13,12 +13,11 @@ def add_application(
     title: str,
     kind: RoleKind,
     deadline_at: datetime | None = None,
-    tier: int = 2,
 ) -> Application:
     """Create company (if new), role, and application in one call."""
     company = session.exec(select(Company).where(Company.name == company_name)).first()
     if company is None:
-        company = Company(name=company_name, tier=tier)
+        company = Company(name=company_name)
         session.add(company)
         session.flush()
 
@@ -36,15 +35,17 @@ def list_applications(
     session: Session,
     status: AppStatus | None = None,
     due_within_days: int | None = None,
+    now: datetime | None = None,
 ) -> list[Application]:
-    """Filter by status and/or upcoming deadline. Ordered by deadline."""
+    """Filter by status and/or upcoming deadline. Ordered by deadline, undated last."""
+    now = now or utcnow()
     query = select(Application).join(Role)
     if status is not None:
         query = query.where(Application.status == status)
     if due_within_days is not None:
-        cutoff = utcnow() + timedelta(days=due_within_days)
+        cutoff = now + timedelta(days=due_within_days)
         query = query.where(Role.deadline_at.is_not(None)).where(Role.deadline_at <= cutoff)
-    query = query.order_by(Role.deadline_at)
+    query = query.order_by(Role.deadline_at.is_(None), Role.deadline_at)
     return list(session.exec(query).all())
 
 
