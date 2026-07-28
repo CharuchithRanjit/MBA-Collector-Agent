@@ -1,7 +1,7 @@
 # STATE
 
 Updated: 2026-07-28
-Milestone: hour 7 of 10 complete — requirements extraction + chief jd show
+Milestone: hour 8 of 10 complete — ClaudeCLIProvider real cost/model, stdin prompt
 
 ## Done
 - models.py, db.py, config.py, cli.py
@@ -50,6 +50,18 @@ Milestone: hour 7 of 10 complete — requirements extraction + chief jd show
 - Note: local data/chief.db still has the old Role schema (no
   requirements column) — create_all doesn't migrate existing tables.
   Not fixed here; you're recreating the DB by hand.
+- ClaudeCLIProvider fixes from real-world use against the BNP posting
+  (15KB): prompt now goes via stdin, not argv (the earlier unexplained
+  nonzero exit is gone — ran clean on the exact file that triggered
+  it). `--output-format json` parsed for real total_cost_usd and the
+  modelUsage entry with the highest cost (Claude Code sometimes uses a
+  cheap model internally alongside the main one, e.g. for conversation
+  titling — picking max-cost avoids attributing the response to the
+  wrong model). Bonus: input_tokens/output_tokens now populated too,
+  same payload, previously always 0. LLMError now includes stderr and
+  returncode and truncates the echoed command to 200 chars instead of
+  dumping the whole prompt. Live-verified: model="claude-sonnet-5",
+  cost_usd=0.1074 on the real BNP ingest, not "claude-cli"/0.0.
 - 36 tests passing
 
 ## Next
@@ -62,12 +74,10 @@ Milestone: hour 7 of 10 complete — requirements extraction + chief jd show
 - models.py has one pre-existing ruff nit (I001, unsorted imports)
   from the requirements-column edit — left alone since models.py is
   yours; ruff --fix would reorder it if you ever run it un-scoped
-- MODEL_FOR_PURPOSE routing table + real cost_usd calc (still deferred
-  — no purpose needs cheap/expensive routing yet)
-- ClaudeCLIProvider's LLMResponse.model is just "claude-cli" (the
-  provider name), not a real model identifier — `claude -p` plain
-  output doesn't expose which model ran. Fine for now; would need
-  --output-format json to fix, not worth it yet.
+- AnthropicAPIProvider's cost_usd is still hardcoded 0.0 (no
+  MODEL_FOR_PURPOSE/pricing table) — unaffected by this slice, which
+  only touched ClaudeCLIProvider; that path gets cost directly from
+  claude -p's own JSON, no pricing table needed there
 
 ## Decided, do not reopen
 - No agent framework. Pipelines of typed functions.
