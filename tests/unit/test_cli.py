@@ -3,11 +3,13 @@ from datetime import UTC, datetime
 from typer.testing import CliRunner
 
 import chief.cli as cli_module
+from chief.analyze.summarize import ItemSummary
 from chief.fetch import FetchError
-from chief.models import RoleKind
+from chief.models import Feed, FeedItem, RoleKind
 from chief.rss import FeedEntry, FetchFeedResult
 from chief.services import applications
 from chief.services import feeds as feeds_module
+from chief.services import summarize as summarize_module
 
 runner = CliRunner()
 
@@ -115,3 +117,44 @@ def test_feed_poll_without_id_or_all_exits_1_with_message(session):
 
     assert result.exit_code == 1
     assert "Specify a feed id or --all" in result.output
+
+
+def _make_pending_item(session, feed: Feed, guid: str) -> FeedItem:
+    item = FeedItem(feed=feed, guid=guid, title="A Post", raw_text="raw text")
+    session.add(item)
+    return item
+
+
+def test_feed_summarize_prints_count(session, monkeypatch):
+    feed = feeds_module.add_feed(session, "https://example.com/feed.xml", "Example")
+    _make_pending_item(session, feed, "g1")
+    _make_pending_item(session, feed, "g2")
+    session.commit()
+    monkeypatch.setattr(
+        summarize_module,
+        "summarize_item",
+        lambda text, llm, **kwargs: ItemSummary(summary="s", importance=0.5),
+    )
+
+    result = runner.invoke(cli_module.app, ["feed", "summarize"])
+
+    assert result.exit_code == 0
+    assert "Summarized 2 items" in result.output
+
+
+def test_feed_summarize_respects_limit_option(session, monkeypatch):
+    feed = feeds_module.add_feed(session, "https://example.com/feed.xml", "Example")
+    _make_pending_item(session, feed, "g1")
+    _make_pending_item(session, feed, "g2")
+    _make_pending_item(session, feed, "g3")
+    session.commit()
+    monkeypatch.setattr(
+        summarize_module,
+        "summarize_item",
+        lambda text, llm, **kwargs: ItemSummary(summary="s", importance=0.5),
+    )
+
+    result = runner.invoke(cli_module.app, ["feed", "summarize", "--limit", "2"])
+
+    assert result.exit_code == 0
+    assert "Summarized 2 items" in result.output

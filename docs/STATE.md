@@ -1,8 +1,8 @@
 # STATE
 
 Updated: 2026-08-05
-Milestone: hour 10 slice 1 — RSS feed ingest (schema/fetch/dedupe/persist),
-no summarization/rank/render/brief/scheduler yet
+Milestone: hour 10 slice 2 — feed item summarization (Shape C) done, no
+rank/render/brief/scheduler yet
 
 ## Done
 - models.py, db.py, config.py, cli.py
@@ -119,19 +119,67 @@ no summarization/rank/render/brief/scheduler yet
   GET and/or guid dedup both cover the no-duplicate-rows case either way).
   68 unit tests passing (35 new: 15 rss, 15 feeds, 5 cli), eval suite
   still 11 more gated behind `-m eval`.
+- **Feed item summarization slice 2 (Shape C): schema + LLM call +
+  batch + persist.** `FeedItem` gained `summary`/`importance`/`model`/
+  `prompt_version` (hand-written) — `summary` indexed since `WHERE
+  summary IS NULL` is the idempotency key for the whole batch job (design
+  doc §10). New `llm/prompts/summarize.v1.md` (hand-written) — one to two
+  plain sentences plus a 0.0–1.0 importance score judged against "does
+  this matter to someone actively recruiting for PM/AI-product/tech
+  roles this week," explicit that the number is advisory input to a
+  later deterministic ranking step, not the ranking decision itself.
+  New `src/chief/analyze/summarize.py` (first module in a new `analyze/`
+  package — Shape C, distinct from `extract/`'s Shape A): `summarize_item
+  (text, llm) -> ItemSummary(summary, importance)`, identical shape to
+  `jd_to_role` (same prompt-file loading seam, same `purpose=
+  "summarize_feed_item"` hardcoded literal). New `services/summarize.py`:
+  `summarize_pending_items(session, llm, limit=25)` — queries `summary IS
+  NULL AND raw_text IS NOT NULL`, undated-last ordering, persists
+  `model=llm.name` (coarser than `llm_call.model`, deliberately — exact
+  model is already logged for free via `LoggingProvider`). Dropped a
+  planned `now: datetime | None` param before implementing — computed
+  and immediately discarded, nothing in the function is actually
+  time-dependent, would have been dead code. `chief feed summarize
+  [--limit N]` wired end to end, no per-feed scoping (mirrors
+  `poll_all_feeds`'s globality).
+  Live-tested against the same `hnrss.org` items from slice 1: real
+  `claude -p` calls produced sensible summaries and importance scores
+  (a DeepMind leadership-shakeup story scored 0.6, an Aristotle-quotes
+  post scored 0.0). Idempotency confirmed across three real calls: 5
+  summarized → 15 more (all 20 done) → 0 on a third call with nothing
+  left pending.
+  Deliberately deferred, by explicit choice, not oversight: the LLM-
+  as-judge eval harness (design doc's Shape-C "no eval, no ship" gate is
+  real, but rubric calibration against 20 hand-labeled examples is a
+  bigger lift than the JD-extraction eval and needs real summary data to
+  calibrate against — same "ship first, add golden eval as its own slice
+  after" precedent JD extraction followed); `MODEL_FOR_PURPOSE` cheap-
+  model routing (cross-cutting, would touch JD extraction too, cleaner
+  as its own slice). Both noted below.
+  80 unit tests passing (12 new: 4 analyze, 6 services, 2 cli), eval
+  suite still 11 more gated behind `-m eval`.
 
 ## Next
 - AnthropicAPIProvider's cost_usd is still hardcoded 0.0 (no
   MODEL_FOR_PURPOSE/pricing table) — unaffected by recent slices,
   which only touched ClaudeCLIProvider; that path gets cost directly
   from claude -p's own JSON, no pricing table needed there
-- Rest of the "hours 6–10" milestone, now that ingest (slice 1) is done:
-  summarization job (Shape C, needs the `summary`/`importance`/`model`/
-  `prompt_version` columns deliberately deferred above — design that
-  schema when this slice starts), `rank.py` (hand-written, deterministic,
-  takes `now`), `render.py` (Jinja2, no I/O), `chief brief` [--send],
-  APScheduler + RUN_SCHEDULER flag, ntfy.sh push, Dockerfile/compose, EC2
-  deploy. Each still worth its own slice rather than scoping inline.
+- LLM-as-judge eval harness for summarization, deliberately deferred
+  from slice 2 above — now that real summary data exists (from the live
+  smoke test), hand-label ~20 examples, write a judge prompt, calibrate
+  judge-vs-human agreement (design doc target: ~80%) before trusting any
+  number it produces
+- `MODEL_FOR_PURPOSE` cheap-model routing (config.py/factory.py),
+  deliberately deferred from slice 2 above — summarization is the
+  paradigmatic cheap-model workload per the design doc but currently
+  runs on whatever `get_llm_provider()` returns, same as JD extraction
+- Rest of the "hours 6–10" milestone, now that ingest (slice 1) and
+  summarization (slice 2) are both done: `rank.py` (hand-written,
+  deterministic, takes `now`, consumes `importance` as one input among
+  several — never the ranking decision itself), `render.py` (Jinja2, no
+  I/O), `chief brief` [--send], APScheduler + RUN_SCHEDULER flag, ntfy.sh
+  push, Dockerfile/compose, EC2 deploy. Each still worth its own slice
+  rather than scoping inline.
 
 ## Decided, do not reopen
 - No agent framework. Pipelines of typed functions.

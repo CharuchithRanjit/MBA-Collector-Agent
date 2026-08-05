@@ -99,7 +99,6 @@ class Feed(SQLModel, table=True):
 
     items: list["FeedItem"] = Relationship(back_populates="feed")
 
-
 class FeedItem(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     feed_id: int = Field(foreign_key="feed.id", index=True)
@@ -107,7 +106,11 @@ class FeedItem(SQLModel, table=True):
     url: str | None = None
     title: str
     published_at: datetime | None = Field(default=None, index=True)
-    raw_text: str | None = None               # always keep the source (§7.2 rule 1)
+    raw_text: str | None = None
     created_at: datetime = Field(default_factory=utcnow)
+    summary: str | None = Field(default=None, index=True)   # NEW — index for the pending-work query
+    importance: float | None = None                          # NEW
+    model: str | None = None                                 # NEW
+    prompt_version: str | None = None                        # NEW
 
     feed: Feed = Relationship(back_populates="items")
