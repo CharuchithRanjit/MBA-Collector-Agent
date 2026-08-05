@@ -1,7 +1,7 @@
 # STATE
 
 Updated: 2026-07-28
-Milestone: hour 8 of 10 complete — ClaudeCLIProvider real cost/model, stdin prompt
+Milestone: hour 9 of 10 complete — JD extraction eval harness + golden set
 
 ## Done
 - models.py, db.py, config.py, cli.py
@@ -69,18 +69,42 @@ Milestone: hour 8 of 10 complete — ClaudeCLIProvider real cost/model, stdin pr
   None) now has a direct test — was only covered indirectly before
 - Stray tracked .pyc files (predating the ignore-bytecode commit)
   untracked with `git rm --cached`; .gitignore already covered them
-- 37 tests passing
+- JD extraction eval harness (tests/eval/test_jd_extraction_quality.py,
+  `-m eval`, excluded from default addopts) + 11 real golden postings
+  in evals/jd/ (raw text + hand-labeled expected extraction). Ran for
+  real against all 11, found and fixed two genuine prompt gaps:
+  company name didn't say to strip a corporate suffix the posting
+  itself displays ("Amazon, Inc." → should be "Amazon"), and the
+  "several offices, use the first" location rule didn't distinguish a
+  single combined location value ("Pittsburgh, PA or Dallas, TX
+  (Hybrid)") from an actual office list. Also fixed oliver_wyman:
+  university career-portal postings often repeat the same office list
+  twice (unlabeled summary card vs. labeled "Location" field, slightly
+  different formatting) — now prefers the labeled copy.
+- 37 tests passing (unit suite; eval suite is 11 more, gated behind
+  `-m eval`, not part of this count)
 
 ## Next
-- 10 real job descriptions as golden files in evals/ + an eval harness
-  (`-m eval` marker, real API calls) — a quality-measurement slice,
-  distinct from "does the pipeline wire together". evals/jd/
-  bnp_avp_intern.txt already exists on disk but is untracked —
-  commit it as part of this slice, not before
+- **Backlog: eval pass rate is noisy run to run.** Re-running all 11
+  golden cases after the oliver_wyman fix gave 8/11 passing again, but
+  a *different* 3 failed (paramount_corp_strat,
+  blackrock_internship_summer, worldbank_intern — none touch the
+  location/company-suffix logic just fixed). This is LLM sampling
+  variance, not a regression. Not chased yet: worth deciding whether
+  to (a) tolerate it and only act on failures that repeat across
+  multiple runs, (b) loosen the exact-match assertions further, or (c)
+  run each case N times and report a pass rate instead of pass/fail.
 - AnthropicAPIProvider's cost_usd is still hardcoded 0.0 (no
-  MODEL_FOR_PURPOSE/pricing table) — unaffected by this slice, which
-  only touched ClaudeCLIProvider; that path gets cost directly from
-  claude -p's own JSON, no pricing table needed there
+  MODEL_FOR_PURPOSE/pricing table) — unaffected by recent slices,
+  which only touched ClaudeCLIProvider; that path gets cost directly
+  from claude -p's own JSON, no pricing table needed there
+- Roadmap's "hours 6–10" milestone (design doc) is next up after this:
+  feed/feed_item tables + RSS ingest with etag caching, rank.py
+  (hand-written, deterministic, takes `now`), render.py (Jinja2, no
+  I/O), `chief brief` [--send], APScheduler + RUN_SCHEDULER flag,
+  ntfy.sh push, Dockerfile/compose, EC2 deploy. Nothing started here
+  yet — worth planning as its own slice (or several) rather than
+  scoping it inline.
 
 ## Decided, do not reopen
 - No agent framework. Pipelines of typed functions.
