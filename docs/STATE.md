@@ -1,8 +1,8 @@
 # STATE
 
 Updated: 2026-08-05
-Milestone: hour 10 slice 4 — render.py done (fixture-tested only, no
-real data yet), no chief brief/scheduler yet
+Milestone: hour 10 slice 5 — `chief brief` works end to end against
+real data. No --send/ntfy, no scheduler, no deploy yet.
 
 ## Done
 - models.py, db.py, config.py, cli.py
@@ -231,6 +231,60 @@ real data yet), no chief brief/scheduler yet
   101 unit tests passing (10 new), eval suite still 11 more gated
   behind `-m eval`. No live smoke test this slice, by design — first
   real data flows through render.py in the chief-brief slice.
+- **`chief brief` slice 5: the orchestrator + first Shape-B LLM call.**
+  Plain `chief brief` only (confirmed scope) — `--send`/ntfy is its own
+  slice, `notify.py` doesn't exist yet.
+  New `llm/prompts/focus_line.v1.md` (hand-written) — explicit "don't
+  invent facts" guardrails, since Shape B is where a model is most
+  tempted to fabricate a plausible-sounding comparison between
+  applications. New `src/chief/draft/focus_line.py` (third Shape
+  package, joining `extract/`=A and `analyze/`=C): `write_focus_line()`
+  uses `llm.complete()`, not `structured()` — Shape B is prose, no
+  schema — and returns `FocusLine(text, cost_usd)` so the briefing
+  footer's cost figure comes straight from `LLMResponse.cost_usd`, no
+  separate `llm_call` query needed. A deterministic `_signal_for()`
+  classifies *why* the top application is urgent (overdue next action /
+  deadline soon / stale >14d / not started) and hands the model an exact
+  hours/days figure — the prompt explicitly forbids the model from
+  computing or estimating its own time figure, only restating the given
+  one in its own words.
+  `services/applications.py` gained `list_next_actions_due` and
+  `get_pipeline_summary` (bucket math confirmed against the design doc's
+  own sample: 5 applied + 2 in-process + 1 offer + 4 not-started = 12
+  tracked). `services/feeds.py` gained `get_top_news_items` (importance
+  sort + threshold, deterministic — never a model, per the design doc's
+  explicit anti-pattern) and `count_summarized_items`.
+  New `services/briefing.py` — the actual orchestrator design doc §5.2
+  promised ("there is no orchestrator because briefing.py *is* the
+  orchestrator"). Composes rank + the one LLM call + news selection +
+  render, no SQL of its own. Falls back to a hardcoded "Nothing is due"
+  string with zero cost when there are no active applications — no LLM
+  call at all on that path.
+  `chief brief` prints via plain `print()`, not `console.print()` —
+  Rich's `Console` interprets `[Category]`-style text as its own markup
+  syntax by default, which would have corrupted the real briefing output
+  (news bullets use exactly that bracket format).
+  All 26 new tests passed against the first implementation attempt — the
+  strongest signal yet that the plan-before-code discipline is paying
+  off, though it's also a small sample of one slice.
+  **Live-tested end to end for the first time** — every piece in the
+  project running together against real data: 2 real applications, a
+  real Hacker News poll (20 items), 10 real summarizations, then a real
+  `claude -p` focus-line call. Deadline math was exact (deadline minus
+  the actual run timestamp, not a rounded guess) and the model correctly
+  declined to invent a reason beyond what `_signal_for()` gave it.
+  Re-running `chief brief` immediately after showed the identical news
+  items (same top-N by importance) with only the footer timestamp
+  changing — matches "regenerating is safe," not a bug, per design doc.
+  Known simplifications, flagged not hidden: `items_scanned` counts all
+  summarized items ever, not "today's poll" (no run-marker exists yet);
+  running `chief brief` twice shows the same news both times (no
+  "already shown" tracking — needs the deferred `Briefing` table);
+  `read_time` is a real word-count estimate over stored `raw_text`, not
+  the full original article.
+  122 unit tests passing (21 new: 6 focus_line, 5 briefing, 5
+  applications, 4 feeds, 1 cli), eval suite still 11 more gated behind
+  `-m eval`.
 
 ## Next
 - AnthropicAPIProvider's cost_usd is still hardcoded 0.0 (no
@@ -247,13 +301,12 @@ real data yet), no chief brief/scheduler yet
   paradigmatic cheap-model workload per the design doc but currently
   runs on whatever `get_llm_provider()` returns, same as JD extraction
 - Rest of the "hours 6–10" milestone, now that ingest/summarize/rank/
-  render (slices 1–4) are done: `services/briefing.py` (the
-  orchestrator — queries `list_applications_ranked()`, a new
-  Shape-B focus-line prompt [hand-written, same as every other prompt],
-  news top-N-by-importance selection, assembles a real
-  `BriefingContext`), `chief brief` [--send], APScheduler +
-  RUN_SCHEDULER flag, ntfy.sh push, Dockerfile/compose, EC2 deploy. Each
-  still worth its own slice rather than scoping inline.
+  render/brief (slices 1–5) are done: `--send` + `notify.py` (ntfy.sh
+  push, no account/API key needed), APScheduler + `RUN_SCHEDULER` flag,
+  `Briefing` persistence (only matters once a scheduler is re-running
+  this and "already shown" tracking starts to matter), Dockerfile/
+  compose, EC2 deploy. Each still worth its own slice rather than
+  scoping inline.
 
 ## Decided, do not reopen
 - No agent framework. Pipelines of typed functions.

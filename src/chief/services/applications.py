@@ -85,6 +85,57 @@ def list_applications_ranked(session: Session, now: datetime | None = None) -> l
     return rank.rank_applications(candidates, now)
 
 
+def list_next_actions_due(session: Session, now: datetime | None = None) -> list[Application]:
+    """Applications with a next_action due today or overdue."""
+    now = now or utcnow()
+    query = (
+        select(Application)
+        .where(Application.next_action_due_at.is_not(None))
+        .where(Application.next_action_due_at <= now)
+    )
+    return list(session.exec(query).all())
+
+
+_IN_PROCESS_STATUSES = (AppStatus.OA, AppStatus.PHONE, AppStatus.ONSITE)
+
+
+def get_pipeline_summary(session: Session, now: datetime | None = None) -> dict:
+    """{tracked, applied, in_process, offer_stage, not_started, stale}.
+
+    tracked excludes REJECTED/WITHDRAWN, same exclusion list_applications_ranked
+    uses. stale = company names where status=APPLIED and applied_at < now-14d.
+    """
+    now = now or utcnow()
+    active = list(
+        session.exec(
+            select(Application)
+            .join(Role)
+            .where(Application.status.not_in([AppStatus.REJECTED, AppStatus.WITHDRAWN]))
+        ).all()
+    )
+
+    not_started = sum(1 for a in active if a.status == AppStatus.INTERESTED)
+    applied = sum(1 for a in active if a.status == AppStatus.APPLIED)
+    in_process = sum(1 for a in active if a.status in _IN_PROCESS_STATUSES)
+    offer_stage = sum(1 for a in active if a.status == AppStatus.OFFER)
+    stale = [
+        a.role.company.name
+        for a in active
+        if a.status == AppStatus.APPLIED
+        and a.applied_at is not None
+        and (now - as_utc(a.applied_at)).days > 14
+    ]
+
+    return {
+        "tracked": len(active),
+        "applied": applied,
+        "in_process": in_process,
+        "offer_stage": offer_stage,
+        "not_started": not_started,
+        "stale": stale,
+    }
+
+
 def move_application(
     session: Session,
     application_id: int,

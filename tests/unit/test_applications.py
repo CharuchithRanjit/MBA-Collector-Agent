@@ -149,3 +149,82 @@ def test_list_applications_ranked_respects_injected_now(session):
     later_now = now + timedelta(days=100)
     later_order = applications.list_applications_ranked(session, now=later_now)
     assert [a.id for a in later_order] == [far_dream.id, near_safety.id]
+
+
+def test_list_next_actions_due_includes_overdue_and_due_today(session):
+    now = datetime.now(UTC)
+    overdue = applications.add_application(session, "Overdue Co", "SWE", RoleKind.FULLTIME)
+    applications.move_application(
+        session, overdue.id, next_action="Follow up", next_action_due_at=now - timedelta(days=1)
+    )
+    due_today = applications.add_application(session, "Today Co", "SWE", RoleKind.FULLTIME)
+    applications.move_application(
+        session, due_today.id, next_action="Send thank-you", next_action_due_at=now
+    )
+
+    results = applications.list_next_actions_due(session, now=now)
+
+    assert {a.id for a in results} == {overdue.id, due_today.id}
+
+
+def test_list_next_actions_due_excludes_future_actions(session):
+    now = datetime.now(UTC)
+    future = applications.add_application(session, "Future Co", "SWE", RoleKind.FULLTIME)
+    applications.move_application(
+        session, future.id, next_action="Prepare", next_action_due_at=now + timedelta(days=3)
+    )
+
+    results = applications.list_next_actions_due(session, now=now)
+
+    assert results == []
+
+
+def test_get_pipeline_summary_buckets_by_status(session):
+    now = datetime.now(UTC)
+    applications.add_application(session, "Interested Co", "SWE", RoleKind.FULLTIME)
+    applied = applications.add_application(session, "Applied Co", "SWE", RoleKind.FULLTIME)
+    applications.move_application(session, applied.id, status=AppStatus.APPLIED)
+    for name, status in [("OA Co", AppStatus.OA), ("Phone Co", AppStatus.PHONE), ("Onsite Co", AppStatus.ONSITE)]:
+        app = applications.add_application(session, name, "SWE", RoleKind.FULLTIME)
+        applications.move_application(session, app.id, status=status)
+    offer = applications.add_application(session, "Offer Co", "SWE", RoleKind.FULLTIME)
+    applications.move_application(session, offer.id, status=AppStatus.OFFER)
+
+    summary = applications.get_pipeline_summary(session, now=now)
+
+    assert summary["not_started"] == 1
+    assert summary["applied"] == 1
+    assert summary["in_process"] == 3
+    assert summary["offer_stage"] == 1
+    assert summary["tracked"] == 6
+
+
+def test_get_pipeline_summary_excludes_rejected_and_withdrawn_from_tracked(session):
+    now = datetime.now(UTC)
+    applications.add_application(session, "Active Co", "SWE", RoleKind.FULLTIME)
+    rejected = applications.add_application(session, "Rejected Co", "SWE", RoleKind.FULLTIME)
+    applications.move_application(session, rejected.id, status=AppStatus.REJECTED)
+    withdrawn = applications.add_application(session, "Withdrawn Co", "SWE", RoleKind.FULLTIME)
+    applications.move_application(session, withdrawn.id, status=AppStatus.WITHDRAWN)
+
+    summary = applications.get_pipeline_summary(session, now=now)
+
+    assert summary["tracked"] == 1
+
+
+def test_get_pipeline_summary_flags_stale_applied_over_14_days(session):
+    now = datetime.now(UTC)
+    stale = applications.add_application(session, "Stale Co", "SWE", RoleKind.FULLTIME)
+    stale.status = AppStatus.APPLIED
+    stale.applied_at = now - timedelta(days=20)
+    session.add(stale)
+    session.flush()
+    fresh = applications.add_application(session, "Fresh Co", "SWE", RoleKind.FULLTIME)
+    fresh.status = AppStatus.APPLIED
+    fresh.applied_at = now - timedelta(days=5)
+    session.add(fresh)
+    session.flush()
+
+    summary = applications.get_pipeline_summary(session, now=now)
+
+    assert summary["stale"] == ["Stale Co"]

@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlmodel import Session, select
+from sqlmodel import Session, func, select
 
 from chief.fetch import FetchError
 from chief.models import Feed, FeedItem, as_utc, utcnow
@@ -85,3 +85,29 @@ def poll_all_feeds(session: Session, now: datetime | None = None) -> dict[int, l
         except FetchError:
             results[feed.id] = []
     return results
+
+
+def get_top_news_items(
+    session: Session, limit: int = 4, min_importance: float = 0.3
+) -> list[FeedItem]:
+    """Summarized items, importance-sorted, above the threshold, capped.
+
+    Deterministic sort+threshold — never a model — per briefing-spec.md's
+    field-source table ("News item selection: importance score, top N:
+    deterministic threshold").
+    """
+    query = (
+        select(FeedItem)
+        .where(FeedItem.summary.is_not(None))
+        .where(FeedItem.importance >= min_importance)
+        .order_by(FeedItem.importance.desc())
+        .limit(limit)
+    )
+    return list(session.exec(query).all())
+
+
+def count_summarized_items(session: Session) -> int:
+    """How many FeedItems have been summarized, ever — the briefing footer's 'scanned' count."""
+    return session.exec(
+        select(func.count()).select_from(FeedItem).where(FeedItem.summary.is_not(None))
+    ).one()

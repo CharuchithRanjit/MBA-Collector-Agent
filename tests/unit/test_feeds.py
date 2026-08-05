@@ -4,7 +4,7 @@ import pytest
 from sqlmodel import select
 
 from chief.fetch import FetchError
-from chief.models import FeedItem
+from chief.models import Feed, FeedItem
 from chief.rss import FeedEntry, FetchFeedResult
 from chief.services import feeds
 
@@ -207,3 +207,61 @@ def test_poll_all_feeds_returns_new_items_keyed_by_feed_id(session, monkeypatch)
 
     assert results[feed_a.id][0].guid == "ga"
     assert results[feed_b.id][0].guid == "gb"
+
+
+def _make_feed(session) -> Feed:
+    feed = Feed(url="https://example.com/feed.xml", name="Example Feed")
+    session.add(feed)
+    session.flush()
+    return feed
+
+
+def _make_summarized_item(session, feed: Feed, guid: str, importance: float) -> FeedItem:
+    item = FeedItem(
+        feed=feed, guid=guid, title="A Post", raw_text="raw text", summary="a summary", importance=importance
+    )
+    session.add(item)
+    session.flush()
+    return item
+
+
+def test_get_top_news_items_orders_by_importance_descending(session):
+    feed = _make_feed(session)
+    low = _make_summarized_item(session, feed, "g1", importance=0.4)
+    high = _make_summarized_item(session, feed, "g2", importance=0.9)
+
+    results = feeds.get_top_news_items(session)
+
+    assert [i.id for i in results] == [high.id, low.id]
+
+
+def test_get_top_news_items_excludes_below_threshold(session):
+    feed = _make_feed(session)
+    _make_summarized_item(session, feed, "g1", importance=0.1)
+    kept = _make_summarized_item(session, feed, "g2", importance=0.9)
+
+    results = feeds.get_top_news_items(session, min_importance=0.3)
+
+    assert [i.id for i in results] == [kept.id]
+
+
+def test_get_top_news_items_respects_limit(session):
+    feed = _make_feed(session)
+    for i in range(6):
+        _make_summarized_item(session, feed, f"g{i}", importance=0.5 + i * 0.01)
+
+    results = feeds.get_top_news_items(session, limit=3)
+
+    assert len(results) == 3
+
+
+def test_count_summarized_items_counts_only_items_with_summary(session):
+    feed = _make_feed(session)
+    _make_summarized_item(session, feed, "g1", importance=0.5)
+    unsummarized = FeedItem(feed=feed, guid="g2", title="No summary yet", raw_text="raw text")
+    session.add(unsummarized)
+    session.flush()
+
+    count = feeds.count_summarized_items(session)
+
+    assert count == 1

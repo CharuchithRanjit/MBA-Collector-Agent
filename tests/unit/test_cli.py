@@ -135,6 +135,14 @@ def test_feed_poll_without_id_or_all_exits_1_with_message(session):
     assert "Specify a feed id or --all" in result.output
 
 
+def test_brief_prints_rendered_markdown(session):
+    result = runner.invoke(cli_module.app, ["brief"])
+
+    assert result.exit_code == 0
+    assert "# Good morning" in result.output
+    assert "Nothing is due" in result.output
+
+
 def _make_pending_item(session, feed: Feed, guid: str) -> FeedItem:
     item = FeedItem(feed=feed, guid=guid, title="A Post", raw_text="raw text")
     session.add(item)

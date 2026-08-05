@@ -12,7 +12,8 @@ from chief.db import get_session, init_db
 from chief.fetch import FetchError
 from chief.llm.factory import get_llm_provider
 from chief.models import Application, AppStatus, Feed, RoleKind, as_utc
-from chief.services import applications, feeds, jobs, summarize
+from chief.render import render_full
+from chief.services import applications, briefing, feeds, jobs, summarize
 
 app = typer.Typer(pretty_exceptions_show_locals=False)
 app_cmd = typer.Typer()
@@ -189,3 +190,10 @@ def feed_summarize(
     with get_session() as session:
         updated = summarize.summarize_pending_items(session, get_llm_provider(), limit=limit)
     console.print(f"Summarized {len(updated)} items")
+
+
+@app.command("brief")
+def brief() -> None:
+    with get_session() as session:
+        ctx = briefing.build_briefing_context(session, get_llm_provider())
+    print(render_full(ctx, ctx.for_date))
