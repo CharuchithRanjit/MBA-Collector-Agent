@@ -11,14 +11,16 @@ from rich.table import Table
 from chief.db import get_session, init_db
 from chief.fetch import FetchError
 from chief.llm.factory import get_llm_provider
-from chief.models import Application, AppStatus, RoleKind, as_utc
-from chief.services import applications, jobs
+from chief.models import Application, AppStatus, Feed, RoleKind, as_utc
+from chief.services import applications, feeds, jobs
 
 app = typer.Typer(pretty_exceptions_show_locals=False)
 app_cmd = typer.Typer()
 app.add_typer(app_cmd, name="app")
 jd_cmd = typer.Typer()
 app.add_typer(jd_cmd, name="jd")
+feed_cmd = typer.Typer()
+app.add_typer(feed_cmd, name="feed")
 
 console = Console()
 
@@ -55,6 +57,20 @@ def _render_requirements(application: Application) -> None:
         console.print(f"  • {requirement}", highlight=False)
     if not role.requirements:
         console.print("  (none extracted)", highlight=False)
+
+
+def _render_feeds(rows: list[Feed]) -> None:
+    table = Table("ID", "Name", "Category", "Last Fetched", "Etag")
+    for f in rows:
+        last_fetched = as_utc(f.last_fetched_at)
+        table.add_row(
+            str(f.id),
+            f.name,
+            f.category or "",
+            last_fetched.isoformat() if last_fetched else "",
+            "yes" if f.etag else "no",
+        )
+    console.print(table)
 
 
 @app_cmd.command("add")
@@ -118,3 +134,44 @@ def jd_show(application_id: int) -> None:
     with get_session() as session:
         application = applications.get_application(session, application_id)
         _render_requirements(application)
+
+
+@feed_cmd.command("add")
+def feed_add(
+    url: str,
+    name: Annotated[str, typer.Option("--name")],
+    category: Annotated[str | None, typer.Option("--category")] = None,
+) -> None:
+    with get_session() as session:
+        result = feeds.add_feed(session, url, name, category)
+    console.print(f"Added feed {result.id}: {result.name}")
+
+
+@feed_cmd.command("list")
+def feed_list() -> None:
+    with get_session() as session:
+        rows = feeds.list_feeds(session)
+        _render_feeds(rows)
+
+
+@feed_cmd.command("poll")
+def feed_poll(
+    feed_id: Annotated[int | None, typer.Argument()] = None,
+    all_: Annotated[bool, typer.Option("--all")] = False,
+) -> None:
+    if feed_id is None and not all_:
+        console.print("Specify a feed id or --all", highlight=False)
+        raise typer.Exit(code=1)
+    try:
+        with get_session() as session:
+            if all_:
+                results = feeds.poll_all_feeds(session)
+                total = sum(len(items) for items in results.values())
+                console.print(f"Polled {len(results)} feeds, {total} new items")
+            else:
+                feed = feeds.get_feed(session, feed_id)
+                new_items = feeds.poll_feed(session, feed)
+                console.print(f"Polled {feed.name}: {len(new_items)} new items")
+    except FetchError as e:
+        console.print(str(e), highlight=False)
+        raise typer.Exit(code=1) from None

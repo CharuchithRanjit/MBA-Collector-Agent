@@ -86,3 +86,28 @@ class LLMCall(SQLModel, table=True):
     latency_ms: int = 0
     success: bool = True
     error: str | None = None
+
+class Feed(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    url: str = Field(index=True, unique=True)
+    name: str
+    category: str | None = None
+    etag: str | None = None
+    last_modified: str | None = None          # HTTP header value, stored/echoed verbatim
+    last_fetched_at: datetime | None = Field(default=None, index=True)
+    created_at: datetime = Field(default_factory=utcnow)
+
+    items: list["FeedItem"] = Relationship(back_populates="feed")
+
+
+class FeedItem(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    feed_id: int = Field(foreign_key="feed.id", index=True)
+    guid: str = Field(index=True, unique=True)
+    url: str | None = None
+    title: str
+    published_at: datetime | None = Field(default=None, index=True)
+    raw_text: str | None = None               # always keep the source (§7.2 rule 1)
+    created_at: datetime = Field(default_factory=utcnow)
+
+    feed: Feed = Relationship(back_populates="items")

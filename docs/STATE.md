@@ -1,7 +1,8 @@
 # STATE
 
 Updated: 2026-08-05
-Milestone: hour 9 of 10 complete — JD extraction eval harness + golden set
+Milestone: hour 10 slice 1 — RSS feed ingest (schema/fetch/dedupe/persist),
+no summarization/rank/render/brief/scheduler yet
 
 ## Done
 - models.py, db.py, config.py, cli.py
@@ -92,19 +93,45 @@ Milestone: hour 9 of 10 complete — JD extraction eval harness + golden set
   variance. Smoke-tested against oliver_wyman_actuarial (3 real
   `claude -p` runs, passed, 58s, $0). claude_cli.py's LLMError now
   also includes stdout (previously stderr only) on nonzero exit.
+- **RSS feed ingest slice 1: schema + fetch + parse + dedupe + persist.**
+  `Feed`/`FeedItem` added to models.py (hand-written) — `guid` globally
+  unique (matches design doc's stated idempotency key), `last_modified`
+  kept as `str` not `datetime` (opaque HTTP header, echoed verbatim in
+  `If-Modified-Since`, never reparsed). Deliberately left `summary`/
+  `importance`/`model`/`prompt_version` off the table for now — those
+  belong to the not-yet-designed summarization slice; "tables are created
+  when a feature needs them, not upfront."
+  New `src/chief/rss.py`: `fetch_feed(url, etag=, last_modified=)` —
+  conditional GET via `httpx`, parses with `feedparser` (new dependency,
+  approved). 304 returns `not_modified=True` (not an error, not raised).
+  `parsed.bozo` alone doesn't raise — only `bozo and not entries`. guid
+  fallback: `entry.id or entry.link`; entries with neither are skipped
+  (no stable dedup key, one bad entry shouldn't fail the whole poll).
+  New `services/feeds.py`: `add_feed`/`list_feeds`/`get_feed`/`poll_feed`/
+  `poll_all_feeds`. Dedup is a Python set-membership check against
+  `FeedItem.guid` — never a model, per the design doc's explicit
+  anti-pattern. `poll_all_feeds` catches `FetchError` per-feed so one
+  dead feed doesn't kill the batch.
+  `chief feed add/list/poll <id>|--all` wired end to end.
+  Live-tested against `https://hnrss.org/frontpage`: first poll pulled
+  20 real items; second poll and `poll --all` both correctly returned 0
+  new items (that feed sends `Last-Modified` but no `ETag` — conditional
+  GET and/or guid dedup both cover the no-duplicate-rows case either way).
+  68 unit tests passing (35 new: 15 rss, 15 feeds, 5 cli), eval suite
+  still 11 more gated behind `-m eval`.
 
 ## Next
 - AnthropicAPIProvider's cost_usd is still hardcoded 0.0 (no
   MODEL_FOR_PURPOSE/pricing table) — unaffected by recent slices,
   which only touched ClaudeCLIProvider; that path gets cost directly
   from claude -p's own JSON, no pricing table needed there
-- Roadmap's "hours 6–10" milestone (design doc) is next up after this:
-  feed/feed_item tables + RSS ingest with etag caching, rank.py
-  (hand-written, deterministic, takes `now`), render.py (Jinja2, no
-  I/O), `chief brief` [--send], APScheduler + RUN_SCHEDULER flag,
-  ntfy.sh push, Dockerfile/compose, EC2 deploy. Nothing started here
-  yet — worth planning as its own slice (or several) rather than
-  scoping it inline.
+- Rest of the "hours 6–10" milestone, now that ingest (slice 1) is done:
+  summarization job (Shape C, needs the `summary`/`importance`/`model`/
+  `prompt_version` columns deliberately deferred above — design that
+  schema when this slice starts), `rank.py` (hand-written, deterministic,
+  takes `now`), `render.py` (Jinja2, no I/O), `chief brief` [--send],
+  APScheduler + RUN_SCHEDULER flag, ntfy.sh push, Dockerfile/compose, EC2
+  deploy. Each still worth its own slice rather than scoping inline.
 
 ## Decided, do not reopen
 - No agent framework. Pipelines of typed functions.
