@@ -1,0 +1,50 @@
+# Good morning — {{ header_date }}
+
+## Focus
+{{ focus }}
+
+---
+
+## Deadlines · next 7 days
+{% if deadlines %}
+| When | Company | Role | Status |
+|---|---|---|---|
+{% for d in deadlines %}
+| {{ d.when }} | {{ d.company }} | {{ d.role }} | {{ d.status_label }} |
+{% endfor %}
+{% if deadlines_overflow %}
++{{ deadlines_overflow }} more
+{% endif %}
+{% else %}
+None.
+{% endif %}
+
+## Next actions · due
+{% if next_actions %}
+{% for a in next_actions %}
+- **{{ a.when }}** — {{ a.company }}: {{ a.text }}
+{% endfor %}
+{% else %}
+Nothing due today.
+{% endif %}
+
+## Pipeline
+{{ pipeline.tracked }} tracked · {{ pipeline.applied }} applied · {{ pipeline.in_process }} in process · {{ pipeline.offer_stage }} offer-stage · {{ pipeline.not_started }} not started
+{% for name in pipeline.stale %}
+⚠ Stale: **{{ name }}**
+{% endfor %}
+
+## AI news · {{ news_total }} items
+{% if news %}
+{% for n in news %}
+- [{{ n.category }}] {{ n.headline }} — *{{ n.source }}, {{ n.read_time }}*
+{% endfor %}
+{% if news_overflow %}
++{{ news_overflow }} more
+{% endif %}
+{% else %}
+None.
+{% endif %}
+
+---
+*Generated {{ generated_label }} · {{ items_scanned }} items scanned, {{ items_kept }} kept · {{ cost_label }} · {{ prompt_versions_label }}*

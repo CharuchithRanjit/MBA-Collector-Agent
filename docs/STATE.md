@@ -1,7 +1,8 @@
 # STATE
 
 Updated: 2026-08-05
-Milestone: hour 10 slice 3 — rank.py done, no render/brief/scheduler yet
+Milestone: hour 10 slice 4 — render.py done (fixture-tested only, no
+real data yet), no chief brief/scheduler yet
 
 ## Done
 - models.py, db.py, config.py, cli.py
@@ -195,6 +196,41 @@ Milestone: hour 10 slice 3 — rank.py done, no render/brief/scheduler yet
   91 unit tests passing (7 new for rank.py, 3 for
   list_applications_ranked, 1 CLI), eval suite still 11 more gated
   behind `-m eval`.
+- **render.py slice 4: briefing markdown/push renderer, fixture-only.**
+  Not hand-write-reserved (unlike rank.py) — design doc's own
+  division-of-labour table lists Jinja templates under Claude-writes,
+  distinct from prompts. Scoped deliberately to just the renderer: no
+  `services/briefing.py` orchestrator, no `chief brief` command, nothing
+  rendering real data yet — `render.py` can't build a real
+  `BriefingContext` by itself (needs a focus-sentence LLM call and news
+  selection, neither built), so that's next slice.
+  New `BriefingContext`/`DeadlineRow`/`NextActionRow`/`PipelineCounts`/
+  `NewsItem`/`BriefingFooter` dataclasses live in `render.py` itself (no
+  `schemas.py` — same local-definition precedent as `extract/jd.py`'s
+  `RoleExtraction`). `follow_ups`/`matches`/`calendar` present-but-empty
+  per briefing-spec.md's explicit instruction, so those slices are a
+  service change with zero renderer change later.
+  New `src/chief/templates/` (external `.j2` files, mirroring
+  `llm/prompts/`'s file-not-string-literal convention but for a
+  different concern — Claude's to write, not hand-reserved).
+  `render_full`/`render_push` do zero date math inside the templates —
+  `_format_day`/`_when_label`/`_capped` (5-item hard cap + overflow
+  count) all run in Python first, matching the "convert at the edges"
+  rule. `Environment(keep_trailing_newline=True)` — Jinja's default
+  strips the final newline, which would have silently mismatched every
+  golden fixture's trailing `\n`.
+  Two golden-markdown snapshot tests built on briefing-spec.md's peak-
+  season and sparse-day-one samples (not literal copies — that file's
+  own header says its data is fabricated for layout purposes — but
+  structurally faithful), plus 8 single-rule tests (cap/overflow at
+  exactly 5, the "None."/"Nothing due today." empty-section branches,
+  the today-vs-weekday label boundary). 9 of 10 tests passed against the
+  first implementation attempt; the one failure was the test's own bug
+  (`"| Co"` incidentally substring-matches `"| Company |"` in the table
+  header row), not a rendering bug — fixed to a more specific substring.
+  101 unit tests passing (10 new), eval suite still 11 more gated
+  behind `-m eval`. No live smoke test this slice, by design — first
+  real data flows through render.py in the chief-brief slice.
 
 ## Next
 - AnthropicAPIProvider's cost_usd is still hardcoded 0.0 (no
@@ -210,14 +246,14 @@ Milestone: hour 10 slice 3 — rank.py done, no render/brief/scheduler yet
   deliberately deferred from slice 2 — summarization is the
   paradigmatic cheap-model workload per the design doc but currently
   runs on whatever `get_llm_provider()` returns, same as JD extraction
-- Rest of the "hours 6–10" milestone, now that ingest/summarize/rank
-  (slices 1–3) are done: `render.py` (Jinja2, no I/O — consumes
-  `rank.rank_applications()` for the Focus line, plus the fallback
-  ladder from briefing-spec.md for "nothing due," and separately the
-  news top-N-by-importance selection scoped out of slice 3), `chief
-  brief` [--send], APScheduler + RUN_SCHEDULER flag, ntfy.sh push,
-  Dockerfile/compose, EC2 deploy. Each still worth its own slice rather
-  than scoping inline.
+- Rest of the "hours 6–10" milestone, now that ingest/summarize/rank/
+  render (slices 1–4) are done: `services/briefing.py` (the
+  orchestrator — queries `list_applications_ranked()`, a new
+  Shape-B focus-line prompt [hand-written, same as every other prompt],
+  news top-N-by-importance selection, assembles a real
+  `BriefingContext`), `chief brief` [--send], APScheduler +
+  RUN_SCHEDULER flag, ntfy.sh push, Dockerfile/compose, EC2 deploy. Each
+  still worth its own slice rather than scoping inline.
 
 ## Decided, do not reopen
 - No agent framework. Pipelines of typed functions.
