@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from typer.testing import CliRunner
 
@@ -26,6 +26,22 @@ def test_jd_add_prints_paste_hint_on_fetch_error(session, monkeypatch):
     assert "Could not fetch https://example.com/job (403)" in result.output
     assert "chief jd add --paste" in result.output
     assert "Traceback" not in result.output
+
+
+def test_app_list_ranked_flag_uses_ranked_ordering(session):
+    now = datetime.now(UTC)
+    applications.add_application(
+        session, "Later Co", "SWE", RoleKind.FULLTIME, deadline_at=now + timedelta(days=180)
+    )
+    applications.add_application(
+        session, "Soon Co", "SWE", RoleKind.FULLTIME, deadline_at=now + timedelta(days=2)
+    )
+    session.commit()
+
+    result = runner.invoke(cli_module.app, ["app", "list", "--ranked"])
+
+    assert result.exit_code == 0
+    assert result.output.index("Soon Co") < result.output.index("Later Co")
 
 
 def test_jd_show_renders_requirements(session):

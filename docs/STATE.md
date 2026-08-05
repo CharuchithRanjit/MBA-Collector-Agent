@@ -1,8 +1,7 @@
 # STATE
 
 Updated: 2026-08-05
-Milestone: hour 10 slice 2 — feed item summarization (Shape C) done, no
-rank/render/brief/scheduler yet
+Milestone: hour 10 slice 3 — rank.py done, no render/brief/scheduler yet
 
 ## Done
 - models.py, db.py, config.py, cli.py
@@ -158,6 +157,44 @@ rank/render/brief/scheduler yet
   as its own slice). Both noted below.
   80 unit tests passing (12 new: 4 analyze, 6 services, 2 cli), eval
   suite still 11 more gated behind `-m eval`.
+- **rank.py slice 3: deterministic focus-item scoring.** Scoped to
+  Application/Role ranking only (not news top-N-by-importance —
+  briefing-spec.md treats those as two different mechanisms; news
+  selection is a simple sort+threshold, deferred to whichever slice
+  builds the news section). Exception to the usual division of labour:
+  the user asked me to write rank.py itself this time (normally
+  reserved to them per CLAUDE.md) since they were busy — flagged once,
+  then proceeded. `score(application, now)`: urgency from whichever of
+  `next_action_due_at` / `role.deadline_at` is sooner (an overdue next
+  action and a close deadline are both maximally urgent; taking the min
+  means neither signal gets silently ignored when both are set — this
+  was an explicit call, not the strawman's original "next action always
+  wins"), `STAGE_WEIGHTS` per `AppStatus`, `tier_weight = 4 - company.tier`,
+  a 3x overdue multiplier. `as_utc()` on both candidate dates before
+  subtraction — this is the exact landmine CLAUDE.md flags rank.py as
+  the landing spot for. `rank_applications()` sorts descending; callers
+  are expected to have already excluded terminal statuses.
+  `services/applications.list_applications_ranked()` does that exclusion
+  (REJECTED/WITHDRAWN filtered before rank.py ever sees them) — added to
+  the existing file rather than a new `services/briefing.py`, since one
+  ranking helper doesn't yet earn its own module.
+  `chief app list --ranked` wired in as a standalone toggle (doesn't
+  compose with `--status`/`--due-within-days` this slice). Live-tested:
+  a near-term application without any next action beats a far-off one
+  under plain deadline order; adding a next-action due tomorrow to the
+  far-off one correctly pulls it ahead under `--ranked` while the
+  unranked view stays deadline-ordered — confirms the "sooner of the two
+  dates" logic is actually doing something, not just present in the code.
+  `test_list_applications_ranked_respects_injected_now` is worth noting
+  as a test-design pattern: proving `now` is actually threaded through
+  needed a scenario where the *order itself* flips between two `now`
+  values (tier-3-near vs tier-1-far; the far one wins once both are
+  overdue and urgency saturates identically) — an early draft of this
+  test only checked "still returns 1 row," which would have passed even
+  if the function silently ignored `now` and always used `utcnow()`.
+  91 unit tests passing (7 new for rank.py, 3 for
+  list_applications_ranked, 1 CLI), eval suite still 11 more gated
+  behind `-m eval`.
 
 ## Next
 - AnthropicAPIProvider's cost_usd is still hardcoded 0.0 (no
@@ -165,21 +202,22 @@ rank/render/brief/scheduler yet
   which only touched ClaudeCLIProvider; that path gets cost directly
   from claude -p's own JSON, no pricing table needed there
 - LLM-as-judge eval harness for summarization, deliberately deferred
-  from slice 2 above — now that real summary data exists (from the live
+  from slice 2 — now that real summary data exists (from the live
   smoke test), hand-label ~20 examples, write a judge prompt, calibrate
   judge-vs-human agreement (design doc target: ~80%) before trusting any
   number it produces
 - `MODEL_FOR_PURPOSE` cheap-model routing (config.py/factory.py),
-  deliberately deferred from slice 2 above — summarization is the
+  deliberately deferred from slice 2 — summarization is the
   paradigmatic cheap-model workload per the design doc but currently
   runs on whatever `get_llm_provider()` returns, same as JD extraction
-- Rest of the "hours 6–10" milestone, now that ingest (slice 1) and
-  summarization (slice 2) are both done: `rank.py` (hand-written,
-  deterministic, takes `now`, consumes `importance` as one input among
-  several — never the ranking decision itself), `render.py` (Jinja2, no
-  I/O), `chief brief` [--send], APScheduler + RUN_SCHEDULER flag, ntfy.sh
-  push, Dockerfile/compose, EC2 deploy. Each still worth its own slice
-  rather than scoping inline.
+- Rest of the "hours 6–10" milestone, now that ingest/summarize/rank
+  (slices 1–3) are done: `render.py` (Jinja2, no I/O — consumes
+  `rank.rank_applications()` for the Focus line, plus the fallback
+  ladder from briefing-spec.md for "nothing due," and separately the
+  news top-N-by-importance selection scoped out of slice 3), `chief
+  brief` [--send], APScheduler + RUN_SCHEDULER flag, ntfy.sh push,
+  Dockerfile/compose, EC2 deploy. Each still worth its own slice rather
+  than scoping inline.
 
 ## Decided, do not reopen
 - No agent framework. Pipelines of typed functions.

@@ -89,9 +89,14 @@ def add(
 def list_(
     status: Annotated[AppStatus | None, typer.Option("--status")] = None,
     due_within_days: Annotated[int | None, typer.Option("--due-within-days")] = None,
+    ranked: Annotated[bool, typer.Option("--ranked")] = False,
 ) -> None:
     with get_session() as session:
-        rows = applications.list_applications(session, status, due_within_days)
+        rows = (
+            applications.list_applications_ranked(session)
+            if ranked
+            else applications.list_applications(session, status, due_within_days)
+        )
         _render(rows)
 
 @app.callback()

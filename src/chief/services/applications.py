@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 
 from sqlmodel import Session, select
 
+from chief import rank
 from chief.models import Application, AppStatus, Company, Role, RoleKind, as_utc, utcnow
 
 
@@ -72,6 +73,16 @@ def list_applications(
         query = query.where(Role.deadline_at.is_not(None)).where(Role.deadline_at <= cutoff)
     query = query.order_by(Role.deadline_at.is_(None), Role.deadline_at)
     return list(session.exec(query).all())
+
+
+def list_applications_ranked(session: Session, now: datetime | None = None) -> list[Application]:
+    """Active (non-terminal) applications, ordered by rank.score() descending."""
+    now = now or utcnow()
+    query = select(Application).join(Role).where(
+        Application.status.not_in([AppStatus.REJECTED, AppStatus.WITHDRAWN])
+    )
+    candidates = list(session.exec(query).all())
+    return rank.rank_applications(candidates, now)
 
 
 def move_application(
