@@ -6,6 +6,7 @@ import chief.cli as cli_module
 from chief.analyze.summarize import ItemSummary
 from chief.fetch import FetchError
 from chief.models import Feed, FeedItem, RoleKind
+from chief.notify import NotifyError
 from chief.rss import FeedEntry, FetchFeedResult
 from chief.services import applications
 from chief.services import feeds as feeds_module
@@ -141,6 +142,52 @@ def test_brief_prints_rendered_markdown(session):
     assert result.exit_code == 0
     assert "# Good morning" in result.output
     assert "Nothing is due" in result.output
+
+
+def test_brief_send_prints_confirmation_after_pushing(session, monkeypatch):
+    monkeypatch.setattr(cli_module.settings, "ntfy_topic", "my-topic")
+    calls = []
+    monkeypatch.setattr(cli_module.notify, "send_push", lambda text, topic: calls.append((text, topic)))
+
+    result = runner.invoke(cli_module.app, ["brief", "--send"])
+
+    assert result.exit_code == 0
+    assert "Pushed to phone" in result.output
+    assert calls == [(calls[0][0], "my-topic")]
+
+
+def test_brief_send_without_topic_configured_exits_1_with_message(session, monkeypatch):
+    monkeypatch.setattr(cli_module.settings, "ntfy_topic", None)
+
+    result = runner.invoke(cli_module.app, ["brief", "--send"])
+
+    assert result.exit_code == 1
+    assert "Set NTFY_TOPIC in .env to use --send" in result.output
+
+
+def test_brief_send_prints_notify_error_and_exits_1(session, monkeypatch):
+    monkeypatch.setattr(cli_module.settings, "ntfy_topic", "my-topic")
+
+    def raise_notify_error(text, topic):
+        raise NotifyError("Could not send push notification (500)")
+
+    monkeypatch.setattr(cli_module.notify, "send_push", raise_notify_error)
+
+    result = runner.invoke(cli_module.app, ["brief", "--send"])
+
+    assert result.exit_code == 1
+    assert "Could not send push notification (500)" in result.output
+    assert "Traceback" not in result.output
+
+
+def test_brief_without_send_flag_does_not_call_send_push(session, monkeypatch):
+    calls = []
+    monkeypatch.setattr(cli_module.notify, "send_push", lambda text, topic: calls.append((text, topic)))
+
+    result = runner.invoke(cli_module.app, ["brief"])
+
+    assert result.exit_code == 0
+    assert calls == []
 
 
 def _make_pending_item(session, feed: Feed, guid: str) -> FeedItem:

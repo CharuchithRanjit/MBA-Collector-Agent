@@ -8,11 +8,14 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from chief import notify
+from chief.config import settings
 from chief.db import get_session, init_db
 from chief.fetch import FetchError
 from chief.llm.factory import get_llm_provider
 from chief.models import Application, AppStatus, Feed, RoleKind, as_utc
-from chief.render import render_full
+from chief.notify import NotifyError
+from chief.render import render_full, render_push
 from chief.services import applications, briefing, feeds, jobs, summarize
 
 app = typer.Typer(pretty_exceptions_show_locals=False)
@@ -193,7 +196,19 @@ def feed_summarize(
 
 
 @app.command("brief")
-def brief() -> None:
+def brief(send: Annotated[bool, typer.Option("--send")] = False) -> None:
     with get_session() as session:
         ctx = briefing.build_briefing_context(session, get_llm_provider())
     print(render_full(ctx, ctx.for_date))
+
+    if not send:
+        return
+    if not settings.ntfy_topic:
+        console.print("Set NTFY_TOPIC in .env to use --send", highlight=False)
+        raise typer.Exit(code=1)
+    try:
+        notify.send_push(render_push(ctx, ctx.for_date), settings.ntfy_topic)
+    except NotifyError as e:
+        console.print(str(e), highlight=False)
+        raise typer.Exit(code=1) from None
+    console.print("Pushed to phone", highlight=False)

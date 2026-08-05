@@ -1,8 +1,8 @@
 # STATE
 
 Updated: 2026-08-05
-Milestone: hour 10 slice 5 — `chief brief` works end to end against
-real data. No --send/ntfy, no scheduler, no deploy yet.
+Milestone: hour 10 slice 6 — `chief brief --send` pushes to a phone via
+ntfy.sh. No scheduler, no deploy yet.
 
 ## Done
 - models.py, db.py, config.py, cli.py
@@ -285,6 +285,39 @@ real data. No --send/ntfy, no scheduler, no deploy yet.
   122 unit tests passing (21 new: 6 focus_line, 5 briefing, 5
   applications, 4 feeds, 1 cli), eval suite still 11 more gated behind
   `-m eval`.
+- **`notify.py` + `chief brief --send` slice 6.** No blocking
+  prerequisite — first slice with no LLM call and nothing touching
+  models.py/rank.py/a prompt file, so nothing was reserved to the user
+  per CLAUDE.md. `notify.py` is a bare function (`send_push(text,
+  topic)`), not a `Notifier` protocol/class — design doc §16 lists that
+  abstraction as future work "once a second implementation is needed"
+  (Slack/Discord); one notifier doesn't earn it yet, same "two is the
+  threshold" rule followed elsewhere. Mirrors `fetch.py`'s exact shape:
+  one exception (`NotifyError`), `raise_for_status()` in a narrow
+  `try/except`, only `HTTPStatusError` caught (not connection-level
+  errors — same scope `fetch_url_text` already accepts).
+  New `config.py` setting `ntfy_topic: str | None`, and the first
+  `.env.example` in the repo (committed; `.env` already gitignored) —
+  worth one since this is the first genuinely private setting (an
+  unguessable topic name is load-bearing for ntfy.sh's public-server
+  privacy tradeoff, which the design doc explicitly accepts rather than
+  hides).
+  `chief brief --send` prints the full markdown always, then
+  additionally pushes via `render_push()` (already existed, unused until
+  now) when `--send` is passed — not an either/or, matches
+  briefing-spec.md's "the push is a separate render of the same context
+  object, not a truncation" framing. Missing `NTFY_TOPIC` or a push
+  failure both exit 1 with a clean message, no traceback, same pattern
+  as `FetchError` handling elsewhere.
+  9 new tests, all passed on the first implementation attempt.
+  Live-tested against the real ntfy.sh public server with a disposable
+  throwaway topic (not the user's real one) — POST succeeded, and
+  delivery was independently confirmed by polling ntfy's own JSON API
+  (`GET /{topic}/json?poll=1`), not just trusting a 200 status. The
+  user's real `.env`/`NTFY_TOPIC` and phone subscription are theirs to
+  set up and verify — not done as part of this session.
+  129 unit tests passing (7 new: 3 notify, 4 cli), eval suite still 11
+  more gated behind `-m eval`.
 
 ## Next
 - AnthropicAPIProvider's cost_usd is still hardcoded 0.0 (no
@@ -300,13 +333,17 @@ real data. No --send/ntfy, no scheduler, no deploy yet.
   deliberately deferred from slice 2 — summarization is the
   paradigmatic cheap-model workload per the design doc but currently
   runs on whatever `get_llm_provider()` returns, same as JD extraction
+- **You still need to set your own `NTFY_TOPIC` in `.env`** (copy from
+  `.env.example`) and subscribe to it in the ntfy phone app before
+  `chief brief --send` will reach your phone — the smoke test used a
+  disposable throwaway topic, not your real one
 - Rest of the "hours 6–10" milestone, now that ingest/summarize/rank/
-  render/brief (slices 1–5) are done: `--send` + `notify.py` (ntfy.sh
-  push, no account/API key needed), APScheduler + `RUN_SCHEDULER` flag,
-  `Briefing` persistence (only matters once a scheduler is re-running
-  this and "already shown" tracking starts to matter), Dockerfile/
-  compose, EC2 deploy. Each still worth its own slice rather than
-  scoping inline.
+  render/brief/send (slices 1–6) are done: APScheduler + `RUN_SCHEDULER`
+  flag (the thing that actually calls `chief brief --send` at 6am
+  without you typing it), `Briefing` persistence (matters once a
+  scheduler is re-running this and "already shown" tracking starts to
+  matter), Dockerfile/compose, EC2 deploy. Each still worth its own
+  slice rather than scoping inline.
 
 ## Decided, do not reopen
 - No agent framework. Pipelines of typed functions.
