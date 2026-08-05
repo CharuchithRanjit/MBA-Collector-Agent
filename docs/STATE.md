@@ -1,6 +1,6 @@
 # STATE
 
-Updated: 2026-07-28
+Updated: 2026-08-05
 Milestone: hour 9 of 10 complete — JD extraction eval harness + golden set
 
 ## Done
@@ -83,17 +83,17 @@ Milestone: hour 9 of 10 complete — JD extraction eval harness + golden set
   different formatting) — now prefers the labeled copy.
 - 37 tests passing (unit suite; eval suite is 11 more, gated behind
   `-m eval`, not part of this count)
+- Eval-noise backlog item resolved: chose option (c) from below — each
+  golden case now runs 3x (`REPEATS`), requires 2/3 to match
+  (`REPEAT_PASS_THRESHOLD`) before the parametrized test fails. Also
+  normalizes smart punctuation (curly quotes/dashes → straight) before
+  the requirements substring-coverage check, since that was a likely
+  source of false-negative "misses" independent of real sampling
+  variance. Smoke-tested against oliver_wyman_actuarial (3 real
+  `claude -p` runs, passed, 58s, $0). claude_cli.py's LLMError now
+  also includes stdout (previously stderr only) on nonzero exit.
 
 ## Next
-- **Backlog: eval pass rate is noisy run to run.** Re-running all 11
-  golden cases after the oliver_wyman fix gave 8/11 passing again, but
-  a *different* 3 failed (paramount_corp_strat,
-  blackrock_internship_summer, worldbank_intern — none touch the
-  location/company-suffix logic just fixed). This is LLM sampling
-  variance, not a regression. Not chased yet: worth deciding whether
-  to (a) tolerate it and only act on failures that repeat across
-  multiple runs, (b) loosen the exact-match assertions further, or (c)
-  run each case N times and report a pass rate instead of pass/fail.
 - AnthropicAPIProvider's cost_usd is still hardcoded 0.0 (no
   MODEL_FOR_PURPOSE/pricing table) — unaffected by recent slices,
   which only touched ClaudeCLIProvider; that path gets cost directly
