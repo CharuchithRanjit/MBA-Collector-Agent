@@ -54,7 +54,8 @@ class ClaudeCLIProvider:
             )
         except subprocess.CalledProcessError as e:
             raise LLMError(
-                f"claude -p failed (exit {e.returncode}): {_echo(cmd)}\nstderr: {e.stderr}"
+                f"claude -p failed (exit {e.returncode}): {_echo(cmd)}\n"
+                f"stderr: {e.stderr}\nstdout: {e.stdout}"
             ) from e
         except OSError as e:
             raise LLMError(f"claude -p failed to start: {_echo(cmd)}: {e}") from e
