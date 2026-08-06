@@ -63,9 +63,10 @@ class PipelineCounts:
 @dataclass
 class NewsItem:
     category: str
-    headline: str
+    headline: str  # LLM-generated summary sentence, used by markdown/HTML
     source: str
     read_time: str  # "2 min", "skim"
+    title: str = ""  # raw feed title, used by the push notification only
 
 
 @dataclass
@@ -159,4 +160,5 @@ def render_push(ctx: BriefingContext, now: datetime) -> str:
         next_actions_due_today=sum(1 for a in ctx.next_actions if a.due_at.date() == now.date()),
         deadlines_this_week=len(ctx.deadlines),
         news_count=len(ctx.news),
+        news_titles=[n.title for n in ctx.news],
     )

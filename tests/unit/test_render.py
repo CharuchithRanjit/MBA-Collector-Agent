@@ -215,16 +215,32 @@ def test_render_full_uses_weekday_label_for_next_action_due_later():
     assert "**Sat Oct 17** — Ramp: follow up" in result
 
 
-def test_render_push_produces_three_line_summary():
-    result = render_push(_populated_ctx(), NOW)
+def test_render_push_includes_news_headlines():
+    ctx = _populated_ctx()
+    ctx.news = [
+        NewsItem(
+            category="Model releases",
+            headline="Vendor shipped a smaller reasoning model at a third the cost.",
+            source="TechCrunch",
+            read_time="2 min",
+            title="OpenAI ships GPT-6",
+        ),
+        NewsItem(
+            category="Funding",
+            headline="Startup raised a Series B for enterprise eval tooling.",
+            source="The Information",
+            read_time="3 min",
+            title="EvalCo raises $40M Series B",
+        ),
+    ]
 
-    expected = (
-        "Chief · Thu Oct 15\n"
-        "Focus: **Submit the Stripe APM application.** It closes in 47 hours.\n"
-        "2 actions due today · 3 deadlines this week · 2 AI items\n"
-    )
+    result = render_push(ctx, NOW)
 
-    assert result == expected
+    assert "Chief · Thu Oct 15" in result
+    assert "Focus: **Submit the Stripe APM application.** It closes in 47 hours." in result
+    assert "2 actions due today · 3 deadlines this week · 2 AI items" in result
+    assert "OpenAI ships GPT-6" in result
+    assert "EvalCo raises $40M Series B" in result
 
 
 def test_render_push_counts_only_actions_due_today():

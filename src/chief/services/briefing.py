@@ -58,7 +58,13 @@ def build_briefing_context(
 
     news_items = feeds.get_top_news_items(session)
     news = [
-        NewsItem(item.feed.category or "News", item.summary, item.feed.name, _read_time(item.raw_text))
+        NewsItem(
+            item.feed.category or "News",
+            item.summary,
+            item.feed.name,
+            _read_time(item.raw_text),
+            title=item.title,
+        )
         for item in news_items
     ]
 

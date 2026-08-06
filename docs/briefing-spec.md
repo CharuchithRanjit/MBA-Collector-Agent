@@ -75,15 +75,23 @@ Databricks one you already tailored for.
 *Generated 06:00 · 21 items scanned, 4 kept · $0.011 · extract_jd.v3, summarize.v2*
 ```
 
-### Phone push (ntfy) — same data, 3 lines
+### Phone push (ntfy) — same data, 3-line summary + one headline per news item
 
 ```
 Chief · Thu Oct 15
 Focus: Submit Stripe APM — closes in 47h
 2 actions due today · 3 deadlines this week · 4 AI items
+• OpenAI ships GPT-6
+• EvalCo raises $40M Series B
+• ...
 ```
 
-Tap opens `/briefing/today`. **The push is a separate render of the same context object**, not a truncation of the markdown. Build `render_push(ctx)` and `render_full(ctx)` side by side.
+The headline lines use each item's raw feed title, not the LLM-generated
+summary the markdown/HTML views show — the web view (`/briefing/today`)
+is localhost-only, so the push is the only place these ever reach the
+phone; a bare count wasn't enough to actually read them there.
+
+**The push is a separate render of the same context object**, not a truncation of the markdown. Build `render_push(ctx)` and `render_full(ctx)` side by side.
 
 ---
 

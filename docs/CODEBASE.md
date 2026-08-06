@@ -231,7 +231,10 @@ one shape three independent renderers consume:
   HTML output needs real escaping. (This was a real bug, found and
   fixed during the `api.py` slice: an un-escaped `<url>` in a fallback
   message rendered as a literal, browser-interpreted tag.)
-- `render_push()` → `briefing_push.txt.j2` — the 3-line ntfy summary.
+- `render_push()` → `briefing_push.txt.j2` — the ntfy summary: a
+  3-line header plus one `•` line per news item, using each item's raw
+  feed title (`NewsItem.title`) rather than the LLM summary the other
+  two templates use for `headline`.
 
 All date math and the 5-item hard-cap-with-overflow logic happen in
 Python (`_format_day`, `_when_label`, `_capped`) before any template is

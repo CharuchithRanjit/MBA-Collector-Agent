@@ -430,6 +430,23 @@ product.
   146 unit tests passing (17 new: 6 briefing-cache, 5 api, 4 render
   [including the escaping regression test found after the fact], 2
   cli), eval suite still 11 more gated behind `-m eval`.
+- **Push notification now carries news headlines, not just a count.**
+  Prompted by a real complaint: the user got "4 AI items" on their
+  phone and had no way to read them, since `/briefing/today` is
+  localhost-only (public exposure is parked, see Next). Interim fix
+  instead of pulling that forward: `NewsItem` gained a `title: str = ""`
+  field (the raw `FeedItem.title`, distinct from `headline`, which
+  stays the LLM summary markdown/HTML use), threaded through from
+  `services/briefing.py`. `render_push()` now emits one `• {title}`
+  line per news item after the existing 3-line header — templates
+  still do no I/O, still take `now`. This intentionally breaks the
+  design doc's "3 lines" push spec (`docs/briefing-spec.md` updated to
+  match); the hand-written test that encoded the old contract,
+  `test_render_push_produces_three_line_summary`, was replaced with
+  `test_render_push_includes_news_headlines` (user-supplied name).
+  146 → still 146 (one test replaced, not added) + the new test passes
+  the same run as everything else; `docs/CODEBASE.md`'s push
+  description updated too.
 
 ## Next
 - AnthropicAPIProvider's cost_usd is still hardcoded 0.0 (no
