@@ -1,0 +1,7 @@
+[Unit]
+Description=Chief daily briefing (poll feeds, summarize, send)
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/ec2-user/projects/MBA_Agent/chief
+ExecStart=/home/ec2-user/projects/MBA_Agent/chief/ops/run_daily.sh

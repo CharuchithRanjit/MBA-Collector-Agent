@@ -1,0 +1,14 @@
+[Unit]
+Description=Run chief-brief daily at 6am
+
+[Timer]
+# 10:00 UTC = 6am US Eastern (EDT, UTC-4). The box's system clock is
+# UTC and this is a fixed offset, not a named timezone -- it will NOT
+# auto-adjust for DST. When US clocks fall back to EST (UTC-5) around
+# November, this will fire at 5am local until updated to 11:00:00 UTC
+# (and back to 10:00:00 UTC when DST resumes in March). See ops/README.md.
+OnCalendar=*-*-* 10:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

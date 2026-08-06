@@ -1,8 +1,9 @@
 # STATE
 
-Updated: 2026-08-05
-Milestone: hour 10 slice 6 — `chief brief --send` pushes to a phone via
-ntfy.sh. No scheduler, no deploy yet.
+Updated: 2026-08-06
+Milestone: hour 10 slice 7 — scheduler installed and live (systemd user
+timer, not APScheduler). No Dockerfile/deploy yet. This is the last
+slice of the hours 6–10 roadmap other than deploy.
 
 ## Done
 - models.py, db.py, config.py, cli.py
@@ -317,7 +318,55 @@ ntfy.sh. No scheduler, no deploy yet.
   user's real `.env`/`NTFY_TOPIC` and phone subscription are theirs to
   set up and verify — not done as part of this session.
   129 unit tests passing (7 new: 3 notify, 4 cli), eval suite still 11
-  more gated behind `-m eval`.
+  more gated behind `-m eval`. User has since configured a real
+  `NTFY_TOPIC` in `.env` (confirmed by real pushes during the next
+  slice's verification, below) — `.env.example` was subsequently
+  deleted from disk as a side effect of editing `.env` directly (not
+  something this session did), user confirmed leaving it deleted.
+- **Scheduler slice 7: systemd user timer, not APScheduler.** No
+  Python code, no new tests — entirely operational artifacts. `api.py`
+  was never built (every slice stayed CLI-only, `GET /briefing/today`
+  deferred every time), and `fastapi`/`uvicorn`/`structlog` have sat
+  unused in `pyproject.toml` since day one — standing up a web server
+  just to host a scheduler for a once-a-day job was more machinery than
+  the job needed. **This retires "APScheduler + RUN_SCHEDULER flag"
+  from the roadmap** — there's no app process for that flag to toggle
+  anymore; the equivalent control is enabling/disabling the systemd
+  timer.
+  New `ops/run_daily.sh`: `chief feed poll --all` → `chief feed
+  summarize --limit 25` → `chief brief --send`, in sequence. The first
+  two steps are allowed to fail without stopping the script (`||
+  echo ... continuing`, not bare `set -e`) — a single malformed
+  summarization response shouldn't silently skip the actually-important
+  deadline/focus content. Script exit code is `chief brief --send`'s
+  (the last command), so a real failure there still fails the run
+  visibly. Absolute path to `uv`, not `$PATH` — systemd's minimal
+  environment doesn't source shell rc files.
+  New `ops/chief-brief.service` + `ops/chief-brief.timer`, user-level
+  (no sudo to install/manage) with `Persistent=true` (systemd's
+  equivalent of the design doc's `misfire_grace_time` concern — a
+  missed 06:00 fires as soon as the box is back, not silently skipped
+  until tomorrow). One combined run, not the design doc's four
+  separately-timed jobs — deliberate simplification, nothing here takes
+  long enough to need staggered scheduling at this scale.
+  **Live-verified through the real systemd unit**, not just the script
+  by hand: `sudo loginctl enable-linger ec2-user` (needed root — this
+  box has passwordless sudo, confirmed with the user before running),
+  `systemctl --user enable --now chief-brief.timer`, then `systemctl
+  --user start chief-brief.service` to trigger the exact unit the timer
+  will fire, confirmed via `journalctl` — real feed poll, real
+  summarize, real `chief brief --send`, exit 0, real push landed on the
+  user's actual phone (their real `NTFY_TOPIC` is now configured).
+  **Caught during verification, not anticipated in the plan**: the
+  box's system clock is UTC (`timedatectl`), so the original
+  `OnCalendar=06:00:00` would have fired at 6am UTC, not 6am the user's
+  local time. User is UTC-4 (US Eastern/EDT) — corrected to
+  `OnCalendar=10:00:00`. This is a fixed offset, not a named timezone,
+  so it will **not** auto-adjust for DST — `ops/README.md` documents
+  the twice-yearly manual update (10:00 UTC for EDT, 11:00 UTC for EST)
+  and the alternative (`timedatectl set-timezone America/New_York` on
+  the whole box, not done here since it affects all system time, not
+  just this timer).
 
 ## Next
 - AnthropicAPIProvider's cost_usd is still hardcoded 0.0 (no
@@ -333,17 +382,19 @@ ntfy.sh. No scheduler, no deploy yet.
   deliberately deferred from slice 2 — summarization is the
   paradigmatic cheap-model workload per the design doc but currently
   runs on whatever `get_llm_provider()` returns, same as JD extraction
-- **You still need to set your own `NTFY_TOPIC` in `.env`** (copy from
-  `.env.example`) and subscribe to it in the ntfy phone app before
-  `chief brief --send` will reach your phone — the smoke test used a
-  disposable throwaway topic, not your real one
-- Rest of the "hours 6–10" milestone, now that ingest/summarize/rank/
-  render/brief/send (slices 1–6) are done: APScheduler + `RUN_SCHEDULER`
-  flag (the thing that actually calls `chief brief --send` at 6am
-  without you typing it), `Briefing` persistence (matters once a
-  scheduler is re-running this and "already shown" tracking starts to
-  matter), Dockerfile/compose, EC2 deploy. Each still worth its own
-  slice rather than scoping inline.
+- **DST reminder**: update `OnCalendar` in `ops/chief-brief.timer` (both
+  the repo copy and `~/.config/systemd/user/chief-brief.timer`) to
+  `11:00:00` when US clocks fall back to EST (~November), back to
+  `10:00:00` when EDT resumes (~March) — see `ops/README.md`
+- `Briefing` persistence (`for_date UNIQUE`) — still deferred, still
+  the fix for `chief brief --send` not being idempotent on the push
+  side (running it twice sends two identical pushes). Real-world risk
+  stayed low enough through the scheduler slice to keep deferring.
+- Last piece of the "hours 6–10" milestone: Dockerfile/compose, EC2
+  deploy. This slice's systemd units are host-level (run directly on
+  the EC2 box, not in a container) — a container deploy needs its own
+  answer for scheduling (cron/systemd inside the image, the host's
+  timer `docker exec`-ing in, or a sidecar), not solved here.
 
 ## Decided, do not reopen
 - No agent framework. Pipelines of typed functions.
