@@ -1,4 +1,4 @@
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 from chief.draft.focus_line import FocusLine
 from chief.models import Feed, FeedItem, RoleKind
@@ -87,3 +87,80 @@ def test_build_briefing_context_populates_pipeline_and_news(session, monkeypatch
     assert ctx.pipeline.tracked == 1
     assert len(ctx.news) == 1
     assert ctx.news[0].headline == "a summary"
+
+
+def test_get_or_create_briefing_generates_on_first_call_of_day(session, monkeypatch):
+    now = datetime.now(UTC)
+    monkeypatch.setattr(
+        briefing, "write_focus_line", lambda *a, **k: FocusLine(text="focus", cost_usd=0.0)
+    )
+
+    row = briefing.get_or_create_briefing(session, DummyLLM(), now=now)
+
+    assert row.for_date == now.date()
+    assert "Nothing is due" in row.markdown
+    assert row.pushed_at is None
+
+
+def test_get_or_create_briefing_returns_cached_row_on_second_call_same_day(session, monkeypatch):
+    now = datetime.now(UTC)
+    monkeypatch.setattr(
+        briefing, "write_focus_line", lambda *a, **k: FocusLine(text="focus", cost_usd=0.0)
+    )
+
+    first = briefing.get_or_create_briefing(session, DummyLLM(), now=now)
+    second = briefing.get_or_create_briefing(session, DummyLLM(), now=now + timedelta(hours=2))
+
+    assert first.id == second.id
+
+
+def test_get_or_create_briefing_does_not_call_write_focus_line_on_cache_hit(session, monkeypatch):
+    now = datetime.now(UTC)
+    applications.add_application(
+        session, "Some Co", "SWE", RoleKind.FULLTIME, deadline_at=now + timedelta(days=3)
+    )
+    calls = []
+    monkeypatch.setattr(
+        briefing,
+        "write_focus_line",
+        lambda *a, **k: (calls.append(1) or FocusLine(text="focus", cost_usd=0.01)),
+    )
+
+    briefing.get_or_create_briefing(session, DummyLLM(), now=now)
+    briefing.get_or_create_briefing(session, DummyLLM(), now=now + timedelta(hours=2))
+
+    assert len(calls) == 1
+
+
+def test_get_or_create_briefing_generates_fresh_row_for_a_different_day(session, monkeypatch):
+    day1 = datetime(2026, 1, 1, tzinfo=UTC)
+    day2 = datetime(2026, 1, 2, tzinfo=UTC)
+    monkeypatch.setattr(
+        briefing, "write_focus_line", lambda *a, **k: FocusLine(text="focus", cost_usd=0.0)
+    )
+
+    row1 = briefing.get_or_create_briefing(session, DummyLLM(), now=day1)
+    row2 = briefing.get_or_create_briefing(session, DummyLLM(), now=day2)
+
+    assert row1.id != row2.id
+    assert row1.for_date == date(2026, 1, 1)
+    assert row2.for_date == date(2026, 1, 2)
+
+
+def test_get_briefing_by_date_returns_none_when_not_found(session):
+    result = briefing.get_briefing_by_date(session, date(2020, 1, 1))
+
+    assert result is None
+
+
+def test_mark_briefing_pushed_sets_pushed_at(session, monkeypatch):
+    now = datetime.now(UTC)
+    monkeypatch.setattr(
+        briefing, "write_focus_line", lambda *a, **k: FocusLine(text="focus", cost_usd=0.0)
+    )
+    row = briefing.get_or_create_briefing(session, DummyLLM(), now=now)
+    assert row.pushed_at is None
+
+    briefing.mark_briefing_pushed(session, row, now=now)
+
+    assert row.pushed_at == now

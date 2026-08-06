@@ -1,9 +1,10 @@
 # STATE
 
 Updated: 2026-08-06
-Milestone: hour 10 slice 7 — scheduler installed and live (systemd user
-timer, not APScheduler). No Dockerfile/deploy yet. This is the last
-slice of the hours 6–10 roadmap other than deploy.
+Milestone: hour 10 slice 8 — `api.py` + web view live (localhost only,
+native, no Docker). Hours 6–10 roadmap is functionally complete; what's
+left (Docker, TLS, public exposure) is optional hardening, not core
+product.
 
 ## Done
 - models.py, db.py, config.py, cli.py
@@ -367,6 +368,68 @@ slice of the hours 6–10 roadmap other than deploy.
   and the alternative (`timedatectl set-timezone America/New_York` on
   the whole box, not done here since it affects all system time, not
   just this timer).
+- **Docker attempted, parked — `api.py` + web view built natively
+  instead, slice 8.** Tried containerizing (`Dockerfile`,
+  `docker-compose.yml` — both still on disk, uncommitted, untracked):
+  image built and ran fine for non-LLM commands, but hit a real wall —
+  the `$0` `ClaudeCLIProvider` path depends on a host-authenticated
+  `claude` CLI session (a 277MB binary plus a live OAuth token in
+  `~/.claude/.credentials.json`), which a container can't have without
+  either mounting live credentials into it or switching to the paid
+  API. Decided to stay native and build the long-deferred web view
+  instead, which doesn't need Docker at all.
+  New `Briefing` table (hand-written) finally built — `for_date`
+  (`date`, not `datetime` — one row per calendar day, a timestamp would
+  make `UNIQUE` meaningless), caches all three rendered variants
+  (`markdown`/`html`/`push_text`) since this codebase's `render.py`
+  produces each independently, not via markdown→HTML conversion.
+  `pushed_at` fixes `chief brief --send`'s long-standing push
+  non-idempotency for free — same table closes two deferred gaps at
+  once. `services/briefing.get_or_create_briefing()` — one row per
+  day, cache hit skips the LLM call entirely; `chief brief` and the new
+  `api.py` share the same cache, so whichever runs first each day pays
+  for it, the other reuses it.
+  New `src/chief/api.py`: `GET /healthz`, `GET /briefing/today`, `GET
+  /briefing/{date}`. Plain `def` handlers (not `async def`) — every
+  service call underneath is synchronous, FastAPI dispatches sync
+  handlers through its own threadpool, avoiding CLAUDE.md's landmine #7
+  ("blocking I/O in async routes"). Bound to `127.0.0.1` only —
+  reachable via SSH tunnel, not the network, not phone-tappable yet;
+  public exposure + TLS is separate future work, not done here.
+  **Two real bugs found and fixed during live verification, not
+  anticipated in the plan:**
+  1. `render_html` had no autoescaping — `chief jd add <url>` rendered
+     as a literal (browser-interpreted) `<url>` tag, not escaped text.
+     Since feed headlines/company names trace back to external sources
+     (RSS, scraped JD text), this was a real HTML-injection risk, not
+     just cosmetic. Fixed with a second, `autoescape=True` Jinja
+     environment used only for HTML (markdown/push text must stay
+     unescaped or `**bold**` would mangle). Caught by manually
+     inspecting the cached row's stored HTML, not by a test — a
+     regression test (`test_render_html_escapes_untrusted_content`) was
+     added after the fact.
+  2. systemd's user-session `PATH` (`/usr/local/bin:/usr/local/sbin:
+     /usr/bin:/usr/sbin`) doesn't include `~/.local/bin`, where `claude`
+     lives. `chief` shells out to `claude` by bare name (subprocess PATH
+     lookup) — this silently broke any *real* LLM call triggered via
+     systemd, including in the scheduler slice, undetected until now
+     only because every prior systemd verification happened to hit the
+     "nothing due" fallback (no LLM call needed). Fixed by adding
+     `Environment="PATH=..."` to both `chief-brief.service` and the new
+     `chief-api.service`. Confirmed fixed live: `chief feed summarize`
+     went from "claude not found" to "Summarized 25 items" through the
+     exact same systemd unit, no other changes.
+  Live-verified end to end: real HTTP round trip to `/healthz` and
+  `/briefing/today` (200, then a second identical 200 with no new LLM
+  call), `/briefing/2020-01-01` correctly 404s, and — the real payoff —
+  triggering `chief-brief.service` after `/briefing/today` had already
+  generated today's row printed `"Already pushed today"` and reused the
+  *exact* cached markdown (same `Generated` timestamp), proving the
+  scheduler and the web view genuinely share one cache, not two
+  independent code paths that happen to look similar.
+  146 unit tests passing (17 new: 6 briefing-cache, 5 api, 4 render
+  [including the escaping regression test found after the fact], 2
+  cli), eval suite still 11 more gated behind `-m eval`.
 
 ## Next
 - AnthropicAPIProvider's cost_usd is still hardcoded 0.0 (no
@@ -386,15 +449,24 @@ slice of the hours 6–10 roadmap other than deploy.
   the repo copy and `~/.config/systemd/user/chief-brief.timer`) to
   `11:00:00` when US clocks fall back to EST (~November), back to
   `10:00:00` when EDT resumes (~March) — see `ops/README.md`
-- `Briefing` persistence (`for_date UNIQUE`) — still deferred, still
-  the fix for `chief brief --send` not being idempotent on the push
-  side (running it twice sends two identical pushes). Real-world risk
-  stayed low enough through the scheduler slice to keep deferring.
-- Last piece of the "hours 6–10" milestone: Dockerfile/compose, EC2
-  deploy. This slice's systemd units are host-level (run directly on
-  the EC2 box, not in a container) — a container deploy needs its own
-  answer for scheduling (cron/systemd inside the image, the host's
-  timer `docker exec`-ing in, or a sidecar), not solved here.
+- Docker: parked, not cancelled. `Dockerfile`/`docker-compose.yml` on
+  disk, uncommitted, proven for non-LLM commands. Revisit if a paid
+  `ANTHROPIC_API_KEY` ever makes the container fully viable (no
+  host-credential mounting needed) — see slice 8's note above for the
+  exact blocker.
+- Public exposure + TLS (Caddy) — what actually makes tapping the phone
+  push notification open `/briefing/today`. Also the point at which
+  API-key auth on `api.py` starts to matter (not needed while
+  localhost-only, since SSH access is already the access boundary).
+  Design doc calls this "the weekend" — genuinely separate, deliberate
+  future work, not an oversight.
+- `POST /applications`, `POST /jobs/ingest`, `POST /notes`, `GET
+  /costs` — design doc's full `api.py` endpoint list; this slice built
+  only the read-only web view, deliberately.
+- EC2 deploy / GitHub Actions + GHCR — not attempted; this box already
+  *is* the running deployment (systemd + native `uv`), so "deploy"
+  going forward means either standing up CI for this same host or
+  revisiting Docker per the note above.
 
 ## Decided, do not reopen
 - No agent framework. Pipelines of typed functions.

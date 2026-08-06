@@ -1,13 +1,13 @@
 """Assembles a real BriefingContext. The only place all four pieces
 (rank, the focus-line LLM call, news selection, render) meet."""
 
-from datetime import datetime
+from datetime import date, datetime
 
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from chief.draft.focus_line import write_focus_line
 from chief.llm.base import LLMProvider
-from chief.models import utcnow
+from chief.models import Briefing, utcnow
 from chief.render import (
     BriefingContext,
     BriefingFooter,
@@ -15,6 +15,9 @@ from chief.render import (
     NewsItem,
     NextActionRow,
     PipelineCounts,
+    render_full,
+    render_html,
+    render_push,
 )
 from chief.services import applications, feeds
 
@@ -67,3 +70,37 @@ def build_briefing_context(
         prompt_versions=prompt_versions,
     )
     return BriefingContext(now, focus, deadlines, next_actions, pipeline, news, footer)
+
+
+def get_or_create_briefing(
+    session: Session, llm: LLMProvider, now: datetime | None = None
+) -> Briefing:
+    """One row per calendar day. Cache hit skips the LLM call entirely."""
+    now = now or utcnow()
+    today = now.date()
+    existing = session.exec(select(Briefing).where(Briefing.for_date == today)).first()
+    if existing:
+        return existing
+
+    ctx = build_briefing_context(session, llm, now=now)
+    row = Briefing(
+        for_date=today,
+        markdown=render_full(ctx, now),
+        html=render_html(ctx, now),
+        push_text=render_push(ctx, now),
+        cost_usd=ctx.footer.cost_usd,
+        generated_at=now,
+    )
+    session.add(row)
+    session.flush()
+    return row
+
+
+def get_briefing_by_date(session: Session, for_date: date) -> Briefing | None:
+    return session.exec(select(Briefing).where(Briefing.for_date == for_date)).first()
+
+
+def mark_briefing_pushed(session: Session, briefing: Briefing, now: datetime | None = None) -> None:
+    briefing.pushed_at = now or utcnow()
+    session.add(briefing)
+    session.flush()

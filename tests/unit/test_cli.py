@@ -4,6 +4,7 @@ from typer.testing import CliRunner
 
 import chief.cli as cli_module
 from chief.analyze.summarize import ItemSummary
+from chief.draft.focus_line import FocusLine
 from chief.fetch import FetchError
 from chief.models import Feed, FeedItem, RoleKind
 from chief.notify import NotifyError
@@ -188,6 +189,41 @@ def test_brief_without_send_flag_does_not_call_send_push(session, monkeypatch):
 
     assert result.exit_code == 0
     assert calls == []
+
+
+def test_brief_send_twice_same_day_only_pushes_once(session, monkeypatch):
+    monkeypatch.setattr(cli_module.settings, "ntfy_topic", "my-topic")
+    calls = []
+    monkeypatch.setattr(cli_module.notify, "send_push", lambda text, topic: calls.append((text, topic)))
+
+    first = runner.invoke(cli_module.app, ["brief", "--send"])
+    second = runner.invoke(cli_module.app, ["brief", "--send"])
+
+    assert first.exit_code == 0
+    assert second.exit_code == 0
+    assert "Pushed to phone" in first.output
+    assert "Already pushed today" in second.output
+    assert len(calls) == 1
+
+
+def test_brief_second_call_same_day_does_not_regenerate(session, monkeypatch):
+    now = datetime.now(UTC)
+    applications.add_application(
+        session, "Some Co", "SWE", RoleKind.FULLTIME, deadline_at=now + timedelta(days=3)
+    )
+    session.commit()
+    calls = []
+
+    def fake_write_focus_line(*a, **k):
+        calls.append(1)
+        return FocusLine(text="focus", cost_usd=0.0)
+
+    monkeypatch.setattr(cli_module.briefing, "write_focus_line", fake_write_focus_line)
+
+    runner.invoke(cli_module.app, ["brief"])
+    runner.invoke(cli_module.app, ["brief"])
+
+    assert len(calls) == 1
 
 
 def _make_pending_item(session, feed: Feed, guid: str) -> FeedItem:

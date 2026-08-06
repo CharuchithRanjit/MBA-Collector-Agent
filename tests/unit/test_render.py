@@ -8,6 +8,7 @@ from chief.render import (
     NextActionRow,
     PipelineCounts,
     render_full,
+    render_html,
     render_push,
 )
 
@@ -236,3 +237,42 @@ def test_render_push_counts_only_actions_due_today():
     result = render_push(ctx, NOW)
 
     assert "1 actions due today" in result
+
+
+def test_render_html_includes_focus_text():
+    result = render_html(_populated_ctx(), NOW)
+
+    assert "Submit the Stripe APM application" in result
+    assert "<html" in result
+
+
+def test_render_html_escapes_untrusted_content():
+    # Feed headlines/company names trace back to external sources (RSS,
+    # scraped JD text) -- a literal `<tag>` in that data must render as
+    # escaped text, not be interpreted as real markup by the browser.
+    ctx = _sparse_ctx()
+    ctx.focus = "Nothing is due. Add a role: chief jd add <url>"
+
+    result = render_html(ctx, NOW)
+
+    assert "&lt;url&gt;" in result
+    assert "<url>" not in result
+
+
+def test_render_html_shows_none_for_empty_deadlines_section():
+    result = render_html(_sparse_ctx(), NOW)
+
+    assert "None." in result
+
+
+def test_render_html_caps_news_at_five():
+    ctx = _populated_ctx()
+    ctx.news = [
+        NewsItem(category="Cat", headline=f"Headline {i}", source="Src", read_time="1 min")
+        for i in range(7)
+    ]
+
+    result = render_html(ctx, NOW)
+
+    assert result.count("Headline") == 5
+    assert "+2 more" in result

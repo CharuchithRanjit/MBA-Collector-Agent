@@ -1,6 +1,6 @@
 """Database tables. Hand-written — the schema is the expensive thing to change."""
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from enum import StrEnum
 from typing import Optional
 
@@ -114,3 +114,13 @@ class FeedItem(SQLModel, table=True):
     prompt_version: str | None = None                        # NEW
 
     feed: Feed = Relationship(back_populates="items")
+
+class Briefing(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    for_date: date = Field(index=True, unique=True)
+    markdown: str
+    html: str
+    push_text: str
+    cost_usd: float = 0.0
+    generated_at: datetime = Field(default_factory=utcnow)
+    pushed_at: datetime | None = None

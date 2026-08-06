@@ -1,11 +1,17 @@
 [Unit]
-Description=Chief daily briefing (poll feeds, summarize, send)
+Description=Chief API (briefing web view, localhost only)
+After=network.target
 
 [Service]
-Type=oneshot
+Type=simple
 WorkingDirectory=/home/ec2-user/projects/MBA_Agent/chief
 # systemd's user PATH doesn't include ~/.local/bin, where the `claude`
 # binary lives -- chief shells out to it by bare name (subprocess PATH
 # lookup), so without this it silently fails on any real LLM call.
 Environment="PATH=/home/ec2-user/.local/bin:/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin"
-ExecStart=/home/ec2-user/projects/MBA_Agent/chief/ops/run_daily.sh
+ExecStart=/home/ec2-user/.local/bin/uv run uvicorn chief.api:app --host 127.0.0.1 --port 8000
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

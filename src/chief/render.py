@@ -19,6 +19,18 @@ _env = Environment(
     lstrip_blocks=True,
     keep_trailing_newline=True,
 )
+# Separate, autoescaping environment for HTML only — markdown/push text
+# must NOT be escaped (would mangle **bold** etc.), but every string in
+# the HTML template (company names, feed headlines) ultimately traces
+# back to external, untrusted sources (RSS feeds, scraped JD text), so
+# HTML output needs real escaping, not just correct-looking output.
+_html_env = Environment(
+    loader=FileSystemLoader(TEMPLATES_DIR),
+    autoescape=True,
+    trim_blocks=True,
+    lstrip_blocks=True,
+    keep_trailing_newline=True,
+)
 
 CAP = 5
 
@@ -92,15 +104,15 @@ def _capped(items: list, cap: int = CAP) -> tuple[list, int]:
     return items[:cap], max(0, len(items) - cap)
 
 
-def render_full(ctx: BriefingContext, now: datetime) -> str:
+def _template_context(ctx: BriefingContext, now: datetime) -> dict:
+    """Shared context dict for both the markdown and HTML templates."""
     deadlines, deadlines_overflow = _capped(ctx.deadlines)
     next_actions, next_actions_overflow = _capped(ctx.next_actions)
     news, news_overflow = _capped(ctx.news)
-    template = _env.get_template("briefing.md.j2")
-    return template.render(
-        header_date=_format_day(ctx.for_date),
-        focus=ctx.focus,
-        deadlines=[
+    return {
+        "header_date": _format_day(ctx.for_date),
+        "focus": ctx.focus,
+        "deadlines": [
             {
                 "when": _format_day(d.deadline_at),
                 "company": d.company,
@@ -109,24 +121,34 @@ def render_full(ctx: BriefingContext, now: datetime) -> str:
             }
             for d in deadlines
         ],
-        deadlines_overflow=deadlines_overflow,
-        next_actions=[
+        "deadlines_overflow": deadlines_overflow,
+        "next_actions": [
             {"when": _when_label(a.due_at, now), "company": a.company, "text": a.text}
             for a in next_actions
         ],
-        next_actions_overflow=next_actions_overflow,
-        pipeline=ctx.pipeline,
-        news=news,
-        news_total=len(ctx.news),
-        news_overflow=news_overflow,
-        generated_label=ctx.footer.generated_at.strftime("%Y-%m-%d %H:%M"),
-        items_scanned=ctx.footer.items_scanned,
-        items_kept=ctx.footer.items_kept,
-        cost_label=f"${ctx.footer.cost_usd:.3f}",
-        prompt_versions_label=(
+        "next_actions_overflow": next_actions_overflow,
+        "pipeline": ctx.pipeline,
+        "news": news,
+        "news_total": len(ctx.news),
+        "news_overflow": news_overflow,
+        "generated_label": ctx.footer.generated_at.strftime("%Y-%m-%d %H:%M"),
+        "items_scanned": ctx.footer.items_scanned,
+        "items_kept": ctx.footer.items_kept,
+        "cost_label": f"${ctx.footer.cost_usd:.3f}",
+        "prompt_versions_label": (
             ", ".join(ctx.footer.prompt_versions) if ctx.footer.prompt_versions else "none"
         ),
-    )
+    }
+
+
+def render_full(ctx: BriefingContext, now: datetime) -> str:
+    template = _env.get_template("briefing.md.j2")
+    return template.render(**_template_context(ctx, now))
+
+
+def render_html(ctx: BriefingContext, now: datetime) -> str:
+    template = _html_env.get_template("briefing.html.j2")
+    return template.render(**_template_context(ctx, now))
 
 
 def render_push(ctx: BriefingContext, now: datetime) -> str:
