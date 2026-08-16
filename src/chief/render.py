@@ -152,6 +152,17 @@ def render_html(ctx: BriefingContext, now: datetime) -> str:
     return template.render(**_template_context(ctx, now))
 
 
+def render_news_detail(item: NewsItem) -> str:
+    template = _env.get_template("news_detail.txt.j2")
+    return template.render(
+        category=item.category,
+        title=item.title,
+        headline=item.headline,
+        source=item.source,
+        read_time=item.read_time,
+    )
+
+
 def render_push(ctx: BriefingContext, now: datetime) -> str:
     template = _env.get_template("briefing_push.txt.j2")
     return template.render(

@@ -1,5 +1,6 @@
 from datetime import UTC, datetime, timedelta
 
+from chief import render as render_module
 from chief.render import (
     BriefingContext,
     BriefingFooter,
@@ -279,6 +280,23 @@ def test_render_html_shows_none_for_empty_deadlines_section():
     result = render_html(_sparse_ctx(), NOW)
 
     assert "None." in result
+
+
+def test_render_news_detail_includes_title_summary_and_source():
+    item = NewsItem(
+        category="Model releases",
+        headline="A summary sentence.",
+        source="TechCrunch",
+        read_time="2 min",
+        title="OpenAI ships GPT-6",
+    )
+
+    result = render_module.render_news_detail(item)
+
+    assert "OpenAI ships GPT-6" in result
+    assert "A summary sentence." in result
+    assert "TechCrunch" in result
+    assert "2 min" in result
 
 
 def test_render_html_caps_news_at_five():

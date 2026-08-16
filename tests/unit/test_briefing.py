@@ -147,6 +147,78 @@ def test_get_or_create_briefing_generates_fresh_row_for_a_different_day(session,
     assert row2.for_date == date(2026, 1, 2)
 
 
+def test_build_briefing_context_marks_selected_news_items_shown(session, monkeypatch):
+    now = datetime.now(UTC)
+    feed = Feed(url="https://example.com/feed.xml", name="Example Feed")
+    session.add(feed)
+    session.flush()
+    item = FeedItem(
+        feed=feed, guid="g1", title="A Post", raw_text="raw text", summary="a summary", importance=0.9
+    )
+    session.add(item)
+    session.flush()
+    monkeypatch.setattr(
+        briefing, "write_focus_line", lambda *a, **k: FocusLine(text="focus", cost_usd=0.0)
+    )
+
+    briefing.build_briefing_context(session, DummyLLM(), now=now)
+
+    assert item.shown_at == now
+
+
+def test_get_or_create_briefing_cache_hit_does_not_remark_shown_items(session, monkeypatch):
+    now = datetime.now(UTC)
+    monkeypatch.setattr(
+        briefing, "write_focus_line", lambda *a, **k: FocusLine(text="focus", cost_usd=0.0)
+    )
+    calls = []
+    original = briefing.feeds.mark_items_shown
+
+    def fake_mark(session_arg, item_ids, now=None):
+        calls.append(item_ids)
+        return original(session_arg, item_ids, now=now)
+
+    monkeypatch.setattr(briefing.feeds, "mark_items_shown", fake_mark)
+
+    briefing.get_or_create_briefing(session, DummyLLM(), now=now)
+    briefing.get_or_create_briefing(session, DummyLLM(), now=now + timedelta(hours=2))
+
+    assert len(calls) == 1
+
+
+def test_send_news_detail_pushes_sends_one_push_per_shown_item(session, monkeypatch):
+    feed = Feed(url="https://example.com/feed.xml", name="Example Feed")
+    session.add(feed)
+    session.flush()
+    item1 = FeedItem(
+        feed=feed, guid="g1", title="T1", raw_text="raw text", summary="s1", importance=0.9
+    )
+    item2 = FeedItem(
+        feed=feed, guid="g2", title="T2", raw_text="raw text", summary="s2", importance=0.8
+    )
+    session.add(item1)
+    session.add(item2)
+    session.flush()
+    now = datetime(2026, 1, 1, tzinfo=UTC)
+    briefing.feeds.mark_items_shown(session, [item1.id, item2.id], now=now)
+    calls = []
+    monkeypatch.setattr(briefing.notify, "send_push", lambda text, topic: calls.append((text, topic)))
+
+    count = briefing.send_news_detail_pushes(session, "my-topic", now.date())
+
+    assert count == 2
+    assert len(calls) == 2
+    assert all(topic == "my-topic" for _, topic in calls)
+    assert any("T1" in text for text, _ in calls)
+    assert any("T2" in text for text, _ in calls)
+
+
+def test_send_news_detail_pushes_sends_nothing_for_a_date_with_no_shown_items(session):
+    count = briefing.send_news_detail_pushes(session, "my-topic", date(2020, 1, 1))
+
+    assert count == 0
+
+
 def test_get_briefing_by_date_returns_none_when_not_found(session):
     result = briefing.get_briefing_by_date(session, date(2020, 1, 1))
 

@@ -198,7 +198,9 @@ def feed_summarize(
 def brief(send: Annotated[bool, typer.Option("--send")] = False) -> None:
     with get_session() as session:
         row = briefing.get_or_create_briefing(session, get_llm_provider())
-        markdown, push_text, pushed_at, row_id = row.markdown, row.push_text, row.pushed_at, row.id
+        markdown, push_text, pushed_at, row_id, for_date = (
+            row.markdown, row.push_text, row.pushed_at, row.id, row.for_date,
+        )
     print(markdown)
 
     if not send:
@@ -211,6 +213,8 @@ def brief(send: Annotated[bool, typer.Option("--send")] = False) -> None:
         raise typer.Exit(code=1)
     try:
         notify.send_push(push_text, settings.ntfy_topic)
+        with get_session() as session:
+            briefing.send_news_detail_pushes(session, settings.ntfy_topic, for_date)
     except NotifyError as e:
         console.print(str(e), highlight=False)
         raise typer.Exit(code=1) from None

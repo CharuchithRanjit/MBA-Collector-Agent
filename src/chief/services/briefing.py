@@ -5,6 +5,7 @@ from datetime import date, datetime
 
 from sqlmodel import Session, select
 
+from chief import notify
 from chief.draft.focus_line import write_focus_line
 from chief.llm.base import LLMProvider
 from chief.models import Briefing, utcnow
@@ -17,6 +18,7 @@ from chief.render import (
     PipelineCounts,
     render_full,
     render_html,
+    render_news_detail,
     render_push,
 )
 from chief.services import applications, feeds
@@ -67,6 +69,7 @@ def build_briefing_context(
         )
         for item in news_items
     ]
+    feeds.mark_items_shown(session, [item.id for item in news_items], now=now)
 
     footer = BriefingFooter(
         generated_at=now,
@@ -110,3 +113,22 @@ def mark_briefing_pushed(session: Session, briefing: Briefing, now: datetime | N
     briefing.pushed_at = now or utcnow()
     session.add(briefing)
     session.flush()
+
+
+def send_news_detail_pushes(session: Session, topic: str, for_date: date) -> int:
+    """One extra ntfy push per news item shown in that day's briefing —
+    title + summary + source, since the 3-line main push only has room
+    for bare titles. Raises NotifyError (from notify.send_push) on the
+    first failed push, same as the main push's failure handling.
+    """
+    items = feeds.get_items_shown_on(session, for_date)
+    for item in items:
+        news_item = NewsItem(
+            item.feed.category or "News",
+            item.summary,
+            item.feed.name,
+            _read_time(item.raw_text),
+            title=item.title,
+        )
+        notify.send_push(render_news_detail(news_item), topic)
+    return len(items)

@@ -93,6 +93,36 @@ phone; a bare count wasn't enough to actually read them there.
 
 **The push is a separate render of the same context object**, not a truncation of the markdown. Build `render_push(ctx)` and `render_full(ctx)` side by side.
 
+### Per-article detail push
+
+After the main push above, `chief brief --send` sends one additional ntfy
+push per news item shown that day — title, the LLM summary, and source:
+
+```
+[Model releases] OpenAI ships GPT-6
+Vendor shipped a smaller reasoning model at a third the cost.
+TechCrunch · 2 min
+```
+
+`render_news_detail(item)` builds this; `services/briefing.py`'s
+`send_news_detail_pushes()` sends one per item returned by
+`feeds.get_items_shown_on(for_date)`. This is a deliberate tradeoff, not
+an oversight: it means 3-5 extra buzzes some mornings instead of one, in
+exchange for actually being able to read each article's summary on the
+phone (the web view is still localhost-only). The user chose this over a
+single consolidated digest push when asked directly.
+
+### News freshness
+
+`get_top_news_items()` excludes any `FeedItem` with `shown_at` already
+set — every item selected into a generated briefing gets stamped via
+`feeds.mark_items_shown()` as part of `build_briefing_context()`. Without
+this, the same high-importance items won the top-N sort forever, since
+importance scores don't change once assigned — the original failure mode
+this fixes was the same 4 articles appearing in the push every single
+day. Marking only happens on a cache-miss (once per calendar day), same
+gating as the focus-line LLM call.
+
 ---
 
 ## Sample 2 — day one, sparse data

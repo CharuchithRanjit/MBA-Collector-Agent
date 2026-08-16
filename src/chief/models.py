@@ -112,6 +112,7 @@ class FeedItem(SQLModel, table=True):
     importance: float | None = None                          # NEW
     model: str | None = None                                 # NEW
     prompt_version: str | None = None                        # NEW
+    shown_at: datetime | None = Field(default=None, index=True)  # NEW — set once included in a generated Briefing; excludes it from future get_top_news_items picks
 
     feed: Feed = Relationship(back_populates="items")
 

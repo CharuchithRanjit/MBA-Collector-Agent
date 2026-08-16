@@ -206,6 +206,24 @@ def test_brief_send_twice_same_day_only_pushes_once(session, monkeypatch):
     assert len(calls) == 1
 
 
+def test_brief_send_pushes_one_detail_notification_per_news_item(session, monkeypatch):
+    monkeypatch.setattr(cli_module.settings, "ntfy_topic", "my-topic")
+    feed = feeds_module.add_feed(session, "https://example.com/feed.xml", "Example")
+    item = FeedItem(
+        feed=feed, guid="g1", title="T1", raw_text="raw text", summary="s1", importance=0.9
+    )
+    session.add(item)
+    session.commit()
+    calls = []
+    monkeypatch.setattr(cli_module.notify, "send_push", lambda text, topic: calls.append((text, topic)))
+
+    result = runner.invoke(cli_module.app, ["brief", "--send"])
+
+    assert result.exit_code == 0
+    assert len(calls) == 2  # main push + one detail push for the single news item
+    assert any("T1" in text for text, _ in calls)
+
+
 def test_brief_second_call_same_day_does_not_regenerate(session, monkeypatch):
     now = datetime.now(UTC)
     applications.add_application(

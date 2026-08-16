@@ -447,6 +447,41 @@ product.
   146 → still 146 (one test replaced, not added) + the new test passes
   the same run as everything else; `docs/CODEBASE.md`'s push
   description updated too.
+- **News freshness + per-article detail push.** Real bug fix: the user
+  reported getting the same news articles every day. Root cause —
+  `feeds.get_top_news_items()` was a plain importance-sorted top-N query
+  with no memory of what had already been shown, so the same
+  high-importance items won forever once summarized (importance scores
+  don't change after the fact). `FeedItem` gained `shown_at: datetime |
+  None` (indexed) — user-hand-written per the division-of-labour rule,
+  since it's a `models.py` change. `get_top_news_items` now excludes
+  `shown_at IS NOT NULL`; new `services/feeds.py` functions
+  `mark_items_shown(session, item_ids, now)` and `get_items_shown_on
+  (session, for_date)` (the latter filters in Python after `as_utc()`,
+  not a SQL date function — bounded, single-user scale, matches the
+  "convert at the edges" rule). `build_briefing_context` marks the
+  selected news items shown right after selecting them, gated by the same
+  once-per-day cache miss as the focus-line LLM call — confirmed via a
+  monkeypatch-and-count test that a same-day cache hit doesn't re-mark.
+  Second ask from the same conversation: per-article detail push. New
+  `render.py::render_news_detail(item: NewsItem) -> str` (new
+  `templates/news_detail.txt.j2` — title + full LLM summary + source, no
+  `now` param, nothing time-dependent in it) and new
+  `services/briefing.py::send_news_detail_pushes(session, topic,
+  for_date)`, which reads `get_items_shown_on` and sends one ntfy push
+  per item. `chief brief --send` now calls this right after the main
+  push, still inside the existing `NotifyError` handling, still gated by
+  `pushed_at` so reruns don't double-push. User explicitly chose
+  one-push-per-article over a consolidated digest push when asked —
+  flagged as 3-5 extra buzzes some mornings, not a free lunch.
+  `docs/briefing-spec.md` updated with both behaviors.
+  156 unit tests passing (10 new: 4 feeds, 4 briefing, 1 render, 1 cli),
+  eval suite still 11 more gated behind `-m eval`. **Not yet live-tested**
+  — the real `data/chief.db` needs the same by-hand recreation as the
+  `requirements`-column slice (`create_all` doesn't migrate existing
+  tables), and sending real per-article pushes touches the user's actual
+  phone/topic, so both were left for the user to trigger explicitly
+  rather than done silently in this session.
 
 ## Next
 - AnthropicAPIProvider's cost_usd is still hardcoded 0.0 (no

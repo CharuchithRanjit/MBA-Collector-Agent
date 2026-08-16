@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 import pytest
 from sqlmodel import select
@@ -253,6 +253,47 @@ def test_get_top_news_items_respects_limit(session):
     results = feeds.get_top_news_items(session, limit=3)
 
     assert len(results) == 3
+
+
+def test_get_top_news_items_excludes_previously_shown_items(session):
+    feed = _make_feed(session)
+    shown = _make_summarized_item(session, feed, "g1", importance=0.9)
+    feeds.mark_items_shown(session, [shown.id], now=datetime(2026, 1, 1, tzinfo=UTC))
+    unshown = _make_summarized_item(session, feed, "g2", importance=0.5)
+
+    results = feeds.get_top_news_items(session)
+
+    assert [i.id for i in results] == [unshown.id]
+
+
+def test_mark_items_shown_sets_shown_at_on_given_item_ids(session):
+    feed = _make_feed(session)
+    item = _make_summarized_item(session, feed, "g1", importance=0.9)
+    now = datetime(2026, 1, 1, tzinfo=UTC)
+
+    feeds.mark_items_shown(session, [item.id], now=now)
+
+    assert item.shown_at == now
+
+
+def test_get_items_shown_on_returns_items_shown_that_date(session):
+    feed = _make_feed(session)
+    item = _make_summarized_item(session, feed, "g1", importance=0.9)
+    feeds.mark_items_shown(session, [item.id], now=datetime(2026, 1, 1, 12, 0, tzinfo=UTC))
+
+    results = feeds.get_items_shown_on(session, date(2026, 1, 1))
+
+    assert [i.id for i in results] == [item.id]
+
+
+def test_get_items_shown_on_excludes_other_dates(session):
+    feed = _make_feed(session)
+    item = _make_summarized_item(session, feed, "g1", importance=0.9)
+    feeds.mark_items_shown(session, [item.id], now=datetime(2026, 1, 1, tzinfo=UTC))
+
+    results = feeds.get_items_shown_on(session, date(2026, 1, 2))
+
+    assert results == []
 
 
 def test_count_summarized_items_counts_only_items_with_summary(session):

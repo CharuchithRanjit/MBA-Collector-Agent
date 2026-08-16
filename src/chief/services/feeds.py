@@ -1,6 +1,6 @@
 """Feed ingest. No LLM calls — summarization is a separate slice."""
 
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlmodel import Session, func, select
 
@@ -90,20 +90,42 @@ def poll_all_feeds(session: Session, now: datetime | None = None) -> dict[int, l
 def get_top_news_items(
     session: Session, limit: int = 4, min_importance: float = 0.3
 ) -> list[FeedItem]:
-    """Summarized items, importance-sorted, above the threshold, capped.
+    """Summarized, not-yet-shown items, importance-sorted, above the
+    threshold, capped.
 
     Deterministic sort+threshold — never a model — per briefing-spec.md's
     field-source table ("News item selection: importance score, top N:
-    deterministic threshold").
+    deterministic threshold"). Excluding already-shown items is what makes
+    the briefing refresh day to day instead of the same high-importance
+    items winning forever.
     """
     query = (
         select(FeedItem)
         .where(FeedItem.summary.is_not(None))
         .where(FeedItem.importance >= min_importance)
+        .where(FeedItem.shown_at.is_(None))
         .order_by(FeedItem.importance.desc())
         .limit(limit)
     )
     return list(session.exec(query).all())
+
+
+def mark_items_shown(session: Session, item_ids: list[int], now: datetime | None = None) -> None:
+    """Stamp the given FeedItems as shown, so get_top_news_items never picks them again."""
+    now = now or utcnow()
+    items = session.exec(select(FeedItem).where(FeedItem.id.in_(item_ids))).all()
+    for item in items:
+        item.shown_at = now
+        session.add(item)
+    session.flush()
+
+
+def get_items_shown_on(session: Session, for_date: date) -> list[FeedItem]:
+    """FeedItems whose shown_at falls on the given calendar date — the exact
+    set surfaced by a given day's briefing, used for the per-article detail push.
+    """
+    items = session.exec(select(FeedItem).where(FeedItem.shown_at.is_not(None))).all()
+    return [item for item in items if as_utc(item.shown_at).date() == for_date]
 
 
 def count_summarized_items(session: Session) -> int:
