@@ -87,7 +87,9 @@ def test_feed_poll_prints_new_item_count(session, monkeypatch):
     feed = feeds_module.add_feed(session, "https://example.com/feed.xml", "Example")
     session.commit()
 
-    fake_result = FetchFeedResult(entries=[_entry("g1"), _entry("g2")], etag="e1", last_modified="lm1", not_modified=False)
+    fake_result = FetchFeedResult(
+        entries=[_entry("g1"), _entry("g2")], etag="e1", last_modified="lm1", not_modified=False
+    )
     monkeypatch.setattr(feeds_module, "fetch_feed", lambda url, **kwargs: fake_result)
 
     result = runner.invoke(cli_module.app, ["feed", "poll", str(feed.id)])
