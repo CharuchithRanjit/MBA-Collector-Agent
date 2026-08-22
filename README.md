@@ -104,5 +104,7 @@ uv run ruff check --fix
 ## Design
 
 `docs/career-agent-design-doc.md` is the original architecture
-document. `docs/STATE.md` is the live log of what's actually built and
-what's next.
+document. `docs/CODEBASE.md` is a file-by-file reference for how it
+actually works. `docs/STATE.md` is the live log of what's actually
+built and what's next. `docs/dev-log/` holds session-handover notes
+from the AI-assisted build process.
