@@ -30,6 +30,62 @@ AI is used in exactly three narrow places — extraction, summarization,
 and writing the one focus sentence — never for deciding what gets
 shown or in what order.
 
+## Architecture
+
+```mermaid
+flowchart TB
+    subgraph Entry["Entry points"]
+        CLI["CLI (Typer)<br/>chief ..."]
+        API["FastAPI, read-only<br/>/healthz /briefing/*"]
+    end
+
+    subgraph Services["src/chief/services/"]
+        Applications["applications.py"]
+        Jobs["jobs.py"]
+        Feeds["feeds.py"]
+        Summarize["summarize.py"]
+        Briefing["briefing.py"]
+    end
+
+    subgraph Deterministic["No I/O — pure functions, take now:datetime"]
+        Rank["rank.py — scoring"]
+        Render["render.py — templates"]
+    end
+
+    subgraph LLM["src/chief/llm/ — the only path to a model"]
+        Factory["factory.py"] --> Logging["LoggingProvider<br/>(cost/latency to DB)"]
+        Logging --> CLIProvider["ClaudeCLIProvider<br/>claude -p, $0 on Pro"]
+        Logging --> APIProvider["AnthropicAPIProvider<br/>API key fallback"]
+    end
+
+    DB[("SQLite<br/>data/chief.db")]
+    RSSFeeds(["RSS feeds"])
+    Claude(["Claude"])
+    Ntfy(["ntfy.sh"])
+
+    CLI --> Applications & Jobs & Feeds & Summarize & Briefing
+    API --> Briefing
+
+    Applications --> Rank
+    Briefing --> Rank
+    Briefing --> Render
+    Feeds --> RSSFeeds
+
+    Jobs --> Factory
+    Summarize --> Factory
+    Briefing --> Factory
+    CLIProvider --> Claude
+    APIProvider --> Claude
+
+    Services --> DB
+    Briefing --> Ntfy
+```
+
+`rank.py` and `render.py` are the two modules the AI never touches — they
+take a `now: datetime` and return an answer deterministically. Every LLM
+call, regardless of caller, funnels through the same `LoggingProvider`
+so cost and latency are recorded uniformly.
+
 ## Stack
 
 Python 3.12, [uv](https://github.com/astral-sh/uv), FastAPI, Typer,
@@ -74,6 +130,66 @@ chief feed summarize [--limit N]
 # The daily briefing
 chief brief              # print today's briefing
 chief brief --send       # print + push via ntfy.sh (idempotent, once per day)
+```
+
+## How it works
+
+### Daily briefing pipeline
+
+The one command `ops/run_daily.sh` runs on a timer, end to end:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Timer as systemd timer
+    participant CLI as chief CLI
+    participant Feeds as feeds service
+    participant Sum as summarize service
+    participant LLM as LLMProvider
+    participant Brief as briefing service
+    participant Rank as rank.py
+    participant Render as render.py
+    participant Ntfy as ntfy.sh
+
+    Timer->>CLI: chief feed poll --all
+    CLI->>Feeds: poll_all_feeds()
+    Feeds->>Feeds: conditional GET, dedupe by guid
+    Feeds-->>CLI: new FeedItems persisted
+
+    Timer->>CLI: chief feed summarize --limit 25
+    CLI->>Sum: summarize_pending_items()
+    Sum->>LLM: structured() per item — Shape C
+    LLM-->>Sum: summary + importance
+    Sum-->>CLI: FeedItems updated
+
+    Timer->>CLI: chief brief --send
+    CLI->>Brief: get_or_create_briefing()
+    Note over Brief: cache hit for today? return it, no LLM call
+    Brief->>Rank: rank_applications() — deterministic
+    Rank-->>Brief: ranked applications
+    Brief->>LLM: write_focus_line() — Shape B
+    LLM-->>Brief: one focus sentence
+    Brief->>Feeds: get_top_news_items() — deterministic threshold
+    Feeds-->>Brief: top news items, not shown before
+    Brief->>Render: render_full / render_html / render_push
+    Render-->>Brief: Briefing row, persisted
+    Brief->>Ntfy: send_push(push_text)
+    Brief->>Ntfy: send_push(news detail) — one per item
+    Ntfy-->>Timer: phone notification
+```
+
+### JD ingest
+
+```mermaid
+flowchart LR
+    A["chief jd add URL<br/>or --paste"] --> B{URL or<br/>pasted text?}
+    B -->|URL| C["fetch_url_text()<br/>trafilatura"]
+    B -->|"--paste"| D[stdin]
+    C --> E["jd_to_role()<br/>LLM structured extract — Shape A"]
+    D --> E
+    E --> F["add_application()"]
+    F --> G[("Company / Role /<br/>Application rows")]
+    G --> H["chief app list --ranked<br/>rank.py scores it in the tracker"]
 ```
 
 ## Automation
