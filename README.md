@@ -1,5 +1,8 @@
 # Chief
 
+[![CI](https://github.com/CharuchithRanjit/MBA-Collector-Agent/actions/workflows/ci.yml/badge.svg)](https://github.com/CharuchithRanjit/MBA-Collector-Agent/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 A personal career agent for MBA recruiting. Single user, runs on one
 small EC2 box, built around one question: **what's the single most
 important thing to do today, and why?**
