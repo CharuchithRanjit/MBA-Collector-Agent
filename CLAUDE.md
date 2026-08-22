@@ -22,8 +22,8 @@ uv run ruff check --fix  # lint
 uv run chief --help      # CLI
 
 ## Context
-Read docs/context.md before any non-trivial task. docs/design.md is the
-full architecture. docs/STATE.md is the live status — read it first,
+Read docs/CODEBASE.md before any non-trivial task. docs/career-agent-design-doc.md
+is the full architecture. docs/STATE.md is the live status — read it first,
 update it last.
 
 ## Division of labour
