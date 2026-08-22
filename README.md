@@ -93,6 +93,20 @@ Bound to `127.0.0.1` only — reach it over an SSH tunnel:
 ssh -L 8000:127.0.0.1:8000 <host>
 ```
 
+## Docker
+
+```bash
+docker compose up --build
+```
+
+Serves the same read-only web view as native `chief.api:app`, bound to
+`127.0.0.1:8000`. The default `claude -p` CLI provider needs a
+host-authenticated Claude Code session that a container doesn't have, so
+run the container with `CHIEF_LLM_PROVIDER=api` and `ANTHROPIC_API_KEY`
+set in `.env`. The CLI commands (`chief app add`, `chief brief`, ...)
+aren't wired into the container entrypoint — Docker here covers the API
+service only.
+
 ## Testing
 
 ```bash
