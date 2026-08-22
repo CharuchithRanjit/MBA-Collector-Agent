@@ -1,7 +1,7 @@
 [project]
 name = "chief"
 version = "0.1.0"
-description = "Add your description here"
+description = "Personal career agent for MBA recruiting — deterministic ranking, AI-assisted extraction and summarization, and a daily briefing."
 readme = "README.md"
 authors = [
     { name = "Charuchith Ranjit", email = "charuchith@gmail.com" }
