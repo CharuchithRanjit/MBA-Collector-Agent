@@ -735,7 +735,7 @@ Select language
 
 
 English (English)
-Charuchith RanjitStatus is online
+Status is online
 MessagingYou are on the messaging overlay. Press enter to open the list of conversations.
 
 Compose message
